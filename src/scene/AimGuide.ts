@@ -46,8 +46,9 @@ export class AimGuide {
 
     // 파워에 비례해 선이 길어진다. 최대 파워에서 화살표 근처까지.
     const length = 1.2 + power * 5.5;
-    // 회전이 클수록 선 끝이 휜다 — 실제로 공이 휘는 방향과 같게
-    const curve = (spin / THROW.maxSpin) * 0.55;
+    // 회전이 클수록 선 끝이 휜다 — 실제로 공이 휘는 방향과 같게.
+    // Z축 스핀 +는 마찰이 공을 월드 -X(화면 오른쪽)로 밀므로 부호를 뒤집는다.
+    const curve = -(spin / THROW.maxSpin) * 0.55;
 
     for (let i = 0; i <= SEGMENTS; i++) {
       const t = i / SEGMENTS;

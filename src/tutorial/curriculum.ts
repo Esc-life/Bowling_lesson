@@ -406,7 +406,8 @@ export const CURRICULUM: Area[] = [
         diagram: { kind: 'pinDeck', highlight: [7] },
         check: {
           kind: 'drill',
-          setup: { standingPins: [7], hint: '왼쪽 끝 핀이에요. 조금 왼쪽으로 옮겨 서 볼까요?' },
+          // 왼손이면 핀이 미러링되므로 힌트에 왼쪽/오른쪽을 쓰면 안 된다
+          setup: { standingPins: [7], hint: '끝에 있는 핀이에요. 핀이 있는 쪽으로 조금 옮겨 서 볼까요?' },
           goal: { kind: 'knockAll' },
           attempts: 6,
           assist: true,

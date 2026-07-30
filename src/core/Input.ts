@@ -21,9 +21,9 @@ export type ThrowInput = {
   startX: number;
   /** 0~1 */
   power: number;
-  /** 발사 각도 (라디안, + = 오른쪽) */
+  /** 발사 각도 (라디안, 월드 +X = 화면 왼쪽이 양수) */
   angle: number;
-  /** Y축 회전 (rad/s) */
+  /** 옆회전 (rad/s, 진행 방향 Z축. 양수 = 화면 오른쪽으로 휜다) */
   spin: number;
 };
 
@@ -185,13 +185,23 @@ export class DragInput {
     const lateralRatio = pullPx > 8 ? clamp(-dx / pullPx, -1, 1) : 0;
     const angle = lateralRatio * maxAngle;
 
-    const spin = this.computeSpin(t) * scale.spin;
+    // 당김 기울기 (px 좌우 / px 아래). 스핀 계산에서 조준 성분을 빼는 데 쓴다.
+    const aimSlope = pullPx > 8 ? clamp(dx / pullPx, -1, 1) : 0;
+    const spin = this.computeSpin(t, aimSlope) * scale.spin;
 
     return { active: this.dragging, startX: this._startX, power, angle, spin };
   }
 
-  /** 최근 SPIN_WINDOW_MS 구간의 좌우 속도 → 회전 */
-  private computeSpin(now: number): number {
+  /**
+   * 최근 SPIN_WINDOW_MS 구간의 좌우 속도 → 회전.
+   *
+   * 좌우 속도를 그대로 쓰면 안 된다: 각도를 주려고 비스듬히 당기는 동안에도
+   * 좌우 속도가 계속 생기므로, 조준만 했는데 공이 휜다. 당김 기울기(조준선)
+   * 만큼의 좌우 속도는 빼고, 거기서 벗어난 만큼 — 놓기 직전의 '꺾기'만 —
+   * 회전으로 센다. 직선으로 비스듬히 당기면 스핀 0, 끝에서 옆으로 꺾으면
+   * 꺾은 방향으로 휜다.
+   */
+  private computeSpin(now: number, aimSlope: number): number {
     const recent = this.samples.filter((s) => now - s.t <= SPIN_WINDOW_MS);
     if (recent.length < 2) return 0;
 
@@ -200,9 +210,12 @@ export class DragInput {
     const dt = (last.t - first.t) / 1000;
     if (dt <= 0) return 0;
 
+    const vx = (last.x - first.x) / dt;
+    const vy = (last.y - first.y) / dt;
+    const flick = vx - aimSlope * Math.max(0, vy);
+
     // px/s → rad/s. 화면 폭의 절반을 1초에 지나가면 최대 회전.
-    const pxPerSecond = (last.x - first.x) / dt;
-    const normalized = clamp(pxPerSecond / (window.innerWidth * 0.5), -1, 1);
+    const normalized = clamp(flick / (window.innerWidth * 0.5), -1, 1);
     return normalized * THROW.maxSpin;
   }
 

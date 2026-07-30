@@ -52,6 +52,16 @@ body {
   pointer-events: auto;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
+/* hidden 속성은 UA의 display:none인데, .overlay의 display:grid 같은
+   클래스 규칙이 그걸 이겨 버린다. 전역으로 못박아 둔다. */
+[hidden] {
+  display: none !important;
+}
+
 #loading {
   position: absolute;
   inset: 0;
@@ -452,4 +462,533 @@ button:active {
 
 .hand-icon--flip {
   transform: scaleX(-1);
+}
+
+/* ---------------------------------------------------------------- 튜토리얼 공통 */
+
+.learn-btn {
+  position: absolute;
+  top: 16px;
+  right: 118px;
+}
+
+.tutorial-overlay .panel {
+  text-align: left;
+  width: min(640px, 94vw);
+}
+
+.tut-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.tut-crumb {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+.tut-title {
+  margin: 0 0 14px;
+  font-size: 26px;
+}
+
+.tut-body p {
+  margin: 0 0 10px;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.tut-body ul {
+  margin: 0 0 10px;
+  padding-left: 22px;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.tut-callout {
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: rgba(255, 209, 102, 0.14);
+  border-left: 4px solid var(--warn);
+  border-radius: 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.tut-notice {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  background: rgba(79, 195, 247, 0.12);
+  border: 1px dashed rgba(79, 195, 247, 0.5);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+/* 본문의 용어 링크 */
+.term {
+  all: unset;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.glossary-pop {
+  position: absolute;
+  z-index: 5;
+  background: #1d2430;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.glossary-pop b {
+  display: block;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+/* 다이어그램 */
+.diagram {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0;
+}
+
+.diagram canvas {
+  border-radius: 12px;
+  max-width: 100%;
+}
+
+.diagram--scorecard {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.diagram--approach {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.approach-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.approach-controls input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+/* 완료 조건 영역 */
+.tut-check {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.big-btn {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 14px 20px;
+  border-radius: 14px;
+  width: 100%;
+}
+
+.big-btn--accent {
+  background: rgba(79, 195, 247, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.big-btn--accent:hover {
+  background: rgba(79, 195, 247, 0.3);
+}
+
+.tut-done {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--good);
+}
+
+.drill-goal {
+  font-size: 17px;
+  font-weight: 700;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.drill-result {
+  font-size: 18px;
+  font-weight: 800;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 209, 102, 0.14);
+  color: var(--warn);
+}
+
+.drill-result.is-success {
+  background: rgba(110, 231, 160, 0.14);
+  color: var(--good);
+}
+
+.tut-observe-note {
+  font-size: 15px;
+  color: var(--ink-dim);
+}
+
+.tut-foot {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.tut-foot .big-btn {
+  width: auto;
+}
+
+/* ---------------------------------------------------------------- 퀴즈 */
+
+.quiz-prompt {
+  font-size: 21px;
+  font-weight: 700;
+  margin: 4px 0 12px;
+}
+
+.quiz-choices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.choice-btn {
+  text-align: left;
+  font-size: 17px;
+  padding: 13px 16px;
+  border-radius: 12px;
+}
+
+.choice-btn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.choice-btn.is-correct {
+  border-color: var(--good);
+  background: rgba(110, 231, 160, 0.16);
+  color: var(--good);
+  opacity: 1;
+  font-weight: 700;
+}
+
+.choice-btn.is-wrong {
+  border-color: #ff7b7b;
+  background: rgba(255, 123, 123, 0.14);
+  color: #ff9d9d;
+  opacity: 1;
+}
+
+.quiz-feedback {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.quiz-feedback.is-correct {
+  background: rgba(110, 231, 160, 0.14);
+  color: var(--good);
+  font-weight: 700;
+}
+
+.quiz-feedback.is-wrong {
+  background: rgba(255, 209, 102, 0.12);
+  color: var(--ink);
+}
+
+.quiz-summary {
+  text-align: center;
+  padding: 26px 0 10px;
+}
+
+.quiz-summary-emoji {
+  font-size: 56px;
+  margin-bottom: 10px;
+}
+
+.quiz-summary-text {
+  font-size: 21px;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- 영역 메뉴 */
+
+.menu-overall {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+.menu-overall-bar {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.menu-overall-bar > div {
+  height: 100%;
+  background: var(--good);
+  border-radius: 999px;
+  transition: width 0.3s;
+}
+
+.menu-alldone {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--warn);
+  padding: 8px 0;
+}
+
+.areas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.area-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.area-card--focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.3);
+}
+
+.area-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 17px;
+}
+
+.area-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+.area-summary {
+  margin: 4px 0 8px;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+.area-recommend {
+  font-size: 13px;
+  color: var(--warn);
+  margin-bottom: 8px;
+}
+
+.lesson-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lesson-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-size: 15px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lesson-row.is-done {
+  opacity: 0.85;
+}
+
+.lesson-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--good);
+  flex-shrink: 0;
+}
+
+.lesson-row.is-done .lesson-dot {
+  border-color: var(--good);
+}
+
+.lesson-name {
+  flex: 1;
+}
+
+.lesson-score {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.lesson-mins {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.menu-foot {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reset-zone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reset-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--warn);
+}
+
+.text-btn--danger {
+  border-color: rgba(255, 123, 123, 0.6);
+  color: #ff9d9d;
+}
+
+/* ---------------------------------------------------------------- 리포트 */
+
+.report-headline {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--warn);
+  margin-bottom: 18px;
+}
+
+.report-screen h2 {
+  font-size: 16px;
+  margin: 18px 0 8px;
+  color: var(--ink-dim);
+}
+
+.report-area-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 15px;
+}
+
+.report-area-name {
+  width: 170px;
+  flex-shrink: 0;
+}
+
+.report-area-bar {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.report-area-bar > div {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.report-quiz-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 15px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+/* ---------------------------------------------------------------- 드릴 안내 바 */
+
+/* 점수 드릴에서는 점수판이 함께 보이므로 그 아래에 둔다 */
+.drill-bar {
+  position: absolute;
+  top: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, 92vw);
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drill-bar-goal {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.drill-bar-progress {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.drill-bar-msg {
+  font-size: 15px;
+  color: var(--warn);
+  min-height: 20px;
+}
+
+.drill-bar-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }

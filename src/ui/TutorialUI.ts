@@ -1,0 +1,377 @@
+/**
+ * 튜토리얼 전체 흐름의 지휘자.
+ *
+ * 메뉴 ↔ 레슨 패널 ↔ 드릴/관찰(3D 화면) 사이의 전환, 진행률 저장,
+ * 게임과의 연결을 전부 여기서 맡는다. 패널·메뉴·리포트는 화면만 그린다.
+ *
+ * 드릴 중 게임 규칙 처리
+ *  - 핀 일부만 세우는 드릴에서도 FrameMachine은 그대로 돈다. 점수는
+ *    쓰지 않으므로 매 시도 전에 machine.reset() + setupDrill()로 되돌린다.
+ *    이렇게 하면 12번 시도가 쌓여도 "게임 종료"에 걸리지 않는다.
+ *  - 점수 드릴(10프레임 완주)만 진짜 게임 그대로 진행한다.
+ */
+
+import type { Game } from '../core/Game';
+import type { ThrowResult } from '../rules/FrameMachine';
+import { settings } from '../settings';
+import { DrillRunner } from '../tutorial/DrillRunner';
+import { findLesson } from '../tutorial/curriculum';
+import { Progress } from '../tutorial/Progress';
+import { TutorialFlow, type QuizScore } from '../tutorial/TutorialFlow';
+import type { AreaId, Drill, Lesson } from '../tutorial/types';
+import { AreaMenu } from './AreaMenu';
+import { ReportScreen } from './ReportScreen';
+import { TutorialPanel, type LessonContext } from './TutorialPanel';
+
+export type TutorialHooks = {
+  /** 드릴/관찰 세션이 켜지거나 꺼질 때 (점수판 숨김 등에 쓴다) */
+  onSessionChange?: (state: { active: boolean; hideScoreboard: boolean }) => void;
+};
+
+type DrillSession = { kind: 'drill'; lessonId: string; runner: DrillRunner };
+type ObserveSession = { kind: 'observe'; lessonId: string; times: number; count: number };
+
+/** 결과 연출(핀 넘어지는 것)을 보여준 뒤 패널을 다시 여는 대기 시간 */
+const RESULT_LINGER_MS = 1800;
+
+export class TutorialUI {
+  private readonly flow: TutorialFlow;
+  private readonly panel: TutorialPanel;
+  private readonly menu: AreaMenu;
+  private readonly report: ReportScreen;
+  private readonly bar: HTMLElement;
+
+  private currentLessonId: string | null = null;
+  private session: DrillSession | ObserveSession | null = null;
+  private reopenTimer: number | null = null;
+
+  constructor(
+    private readonly game: Game,
+    container: HTMLElement,
+    private readonly hooks: TutorialHooks = {},
+  ) {
+    this.flow = new TutorialFlow(Progress.load());
+    this.currentLessonId = this.flow.currentLessonId;
+
+    this.panel = new TutorialPanel(settings.hand, {
+      onMenu: () => {
+        this.abandonSession();
+        this.openMenu();
+      },
+      onClose: () => this.closeAll(),
+      onNext: () => this.goNext(),
+      onComplete: (score?: QuizScore) => this.markComplete(score),
+      onStartDrill: (drill) => this.startDrill(drill),
+      onStartTrajectoryObserve: (times) => this.startObserve(times),
+    });
+
+    this.menu = new AreaMenu({
+      onOpenLesson: (id) => this.openLesson(id),
+      onClose: () => this.closeAll(),
+      onReport: () => {
+        this.menu.hide();
+        this.report.show(this.flow);
+      },
+      onReset: () => {
+        // 공용 PC에서 다음 학생을 위한 초기화. 손 선택 화면부터 다시.
+        Progress.clear();
+        settings.clear();
+        location.reload();
+      },
+    });
+
+    this.report = new ReportScreen(() => {
+      this.report.hide();
+      this.openMenu();
+    });
+
+    this.bar = document.createElement('div');
+    this.bar.className = 'drill-bar';
+    this.bar.hidden = true;
+    this.bar.addEventListener('click', (e) => {
+      const act = (e.target as HTMLElement).dataset['act'];
+      if (act === 'quit') this.quitSession();
+      if (act === 'demo-straight') this.demoThrow(0);
+      if (act === 'demo-hook') this.demoThrow(settings.hand === 'right' ? 12 : -12);
+    });
+
+    container.appendChild(this.panel.element);
+    container.appendChild(this.menu.element);
+    container.appendChild(this.report.element);
+    container.appendChild(this.bar);
+
+    settings.subscribe((s) => this.panel.setHand(s.handedness ?? 'right'));
+  }
+
+  // -------------------------------------------------------------------------
+  // 화면 전환
+  // -------------------------------------------------------------------------
+
+  get isOpen(): boolean {
+    return this.panel.visible || this.menu.visible || this.report.visible || this.session !== null;
+  }
+
+  openMenu(focusArea?: AreaId): void {
+    this.panel.hide();
+    this.report.hide();
+    this.menu.show(this.flow, focusArea);
+  }
+
+  openLesson(lessonId: string): void {
+    const found = findLesson(lessonId);
+    if (found === null) {
+      this.openMenu();
+      return;
+    }
+    this.currentLessonId = lessonId;
+    this.flow.setCurrent(lessonId);
+    this.save();
+
+    this.menu.hide();
+    this.report.hide();
+    this.panel.setHand(settings.hand);
+    const lesson = found.area.lessons.find((l) => l.id === lessonId)!;
+    this.panel.showLesson(lesson, this.lessonContext(lesson));
+  }
+
+  /** 튜토리얼 화면을 전부 닫고 자유 연습으로 */
+  closeAll(): void {
+    this.abandonSession();
+    this.panel.hide();
+    this.menu.hide();
+    this.report.hide();
+  }
+
+  private goNext(): void {
+    const current = this.currentLessonId;
+    const next = current === null ? null : this.flow.nextOverall(current);
+    if (next !== null) {
+      this.openLesson(next);
+    } else {
+      // 마지막 레슨이었다 — 리포트로 마무리
+      this.panel.hide();
+      this.report.show(this.flow);
+    }
+  }
+
+  private markComplete(score?: QuizScore): void {
+    const id = this.currentLessonId;
+    if (id === null) return;
+    this.flow.complete(id, score);
+    this.save();
+  }
+
+  private save(): void {
+    Progress.save(this.flow.toState());
+  }
+
+  private lessonContext(lesson: Lesson, drillResult?: LessonContext['drillResult']): LessonContext {
+    const found = findLesson(lesson.id);
+    const ctx: LessonContext = {
+      areaTitle: found?.area.title ?? '',
+      completed: this.flow.isCompleted(lesson.id),
+      hasNext: this.flow.nextOverall(lesson.id) !== null,
+    };
+    if (drillResult !== undefined) ctx.drillResult = drillResult;
+    return ctx;
+  }
+
+  // -------------------------------------------------------------------------
+  // 드릴 세션
+  // -------------------------------------------------------------------------
+
+  private startDrill(drill: Drill): void {
+    const lessonId = this.currentLessonId;
+    if (lessonId === null) return;
+
+    const runner = new DrillRunner(drill, settings.hand);
+    this.session = { kind: 'drill', lessonId, runner };
+    this.panel.hide();
+    this.menu.hide();
+    this.showBar();
+    this.hooks.onSessionChange?.({ active: true, hideScoreboard: runner.freshRackEachThrow });
+
+    // restart → beginAiming → onReady → handleReady()가 드릴 핀을 세운다
+    this.game.restart();
+    this.updateBar(null);
+  }
+
+  private startObserve(times: number): void {
+    const lessonId = this.currentLessonId;
+    if (lessonId === null) return;
+
+    this.session = { kind: 'observe', lessonId, times, count: 0 };
+    // 관찰에 필요한 보조 표시를 자동으로 켠다 (관찰 모드 체크박스도 따라간다)
+    settings.update({ showTrajectory: true, showOilZone: true });
+    this.panel.hide();
+    this.menu.hide();
+    this.showBar();
+    this.hooks.onSessionChange?.({ active: true, hideScoreboard: false });
+    this.game.restart();
+    this.updateBar(null);
+  }
+
+  /** 조준 상태가 될 때마다 (Game.onReady) — 드릴 핀을 다시 세운다 */
+  handleReady(): void {
+    const s = this.session;
+    if (s === null || s.kind !== 'drill') return;
+    const runner = s.runner;
+    if (runner.isFinished) return;
+    if (runner.freshRackEachThrow) {
+      this.game.machine.reset();
+      this.game.setupDrill(runner.pins, runner.startX);
+    }
+  }
+
+  /**
+   * 투구 결과 하나가 확정되었을 때 (Game.onThrowResolved).
+   * @returns true면 기본 배너(스트라이크! 등)를 띄우지 말 것 —
+   *          핀 일부만 세운 드릴에서는 기계가 계산한 문구가 틀리다.
+   */
+  handleThrowResolved(result: ThrowResult): boolean {
+    const s = this.session;
+    if (s === null) return false;
+
+    if (s.kind === 'observe') {
+      s.count++;
+      if (s.count >= s.times) {
+        this.flow.complete(s.lessonId);
+        this.save();
+        this.updateBar('👀 잘 봤어요! 공이 뒤쪽에서 휘는 게 보였나요?');
+        this.scheduleReopen(() => this.endSession());
+      } else {
+        this.updateBar(null);
+      }
+      return false;
+    }
+
+    const runner = s.runner;
+    if (runner.isFinished) return false;
+
+    const outcome = runner.recordThrow({
+      result,
+      pocketX: this.game.pocketEntryX,
+      totalScore: this.game.machine.scorecard.total,
+      gameOver: this.game.machine.isGameOver,
+    });
+
+    if (outcome.finished) {
+      // 성공하든 못 하든 완료로 기록한다 — 목적은 통과가 아니라 이해다
+      this.flow.complete(s.lessonId);
+      this.save();
+      const message = outcome.success
+        ? '🎉 성공! 정말 잘했어요!'
+        : '기회를 다 썼어요. 그래도 많이 늘었어요!';
+      this.updateBar(message);
+      this.scheduleReopen(() =>
+        this.endSession({
+          success: outcome.success,
+          message: outcome.success
+            ? '🎉 성공했어요!'
+            : '이번엔 아쉬웠어요. 다시 도전해 볼까요?',
+        }),
+      );
+    } else {
+      this.updateBar(
+        runner.drill.goal.kind === 'minScore'
+          ? null
+          : outcome.hit
+            ? '👍 좋아요! 한 번 더!'
+            : '아깝다! 다시 한 번!',
+      );
+    }
+
+    return runner.freshRackEachThrow && runner.pins.length < 10;
+  }
+
+  /** 결과 연출을 잠깐 보여준 뒤 패널로 돌아간다 */
+  private scheduleReopen(fn: () => void): void {
+    if (this.reopenTimer !== null) window.clearTimeout(this.reopenTimer);
+    this.reopenTimer = window.setTimeout(() => {
+      this.reopenTimer = null;
+      fn();
+    }, RESULT_LINGER_MS);
+  }
+
+  /** 세션을 끝내고 레슨 패널로 돌아간다 */
+  private endSession(drillResult?: LessonContext['drillResult']): void {
+    const s = this.session;
+    this.session = null;
+    this.bar.hidden = true;
+    this.hooks.onSessionChange?.({ active: false, hideScoreboard: false });
+    this.game.restart();
+
+    const lessonId = s?.lessonId ?? this.currentLessonId;
+    const found = lessonId === null ? null : findLesson(lessonId);
+    if (found === null || lessonId === null) return;
+    const lesson = found.area.lessons.find((l) => l.id === lessonId)!;
+    this.panel.showLesson(lesson, this.lessonContext(lesson, drillResult));
+  }
+
+  /** '그만하기' — 완료 기록 없이 패널로 */
+  private quitSession(): void {
+    if (this.reopenTimer !== null) {
+      window.clearTimeout(this.reopenTimer);
+      this.reopenTimer = null;
+    }
+    this.endSession();
+  }
+
+  /** 화면 전환 없이 세션만 중단 (메뉴로 갈 때 등) */
+  private abandonSession(): void {
+    if (this.session === null) return;
+    if (this.reopenTimer !== null) {
+      window.clearTimeout(this.reopenTimer);
+      this.reopenTimer = null;
+    }
+    this.session = null;
+    this.bar.hidden = true;
+    this.hooks.onSessionChange?.({ active: false, hideScoreboard: false });
+    this.game.restart();
+  }
+
+  private demoThrow(spin: number): void {
+    // 곧은 공은 한가운데에서, 휘는 공은 반대쪽에서 출발해 포켓 쪽으로 휜다
+    const startX = spin === 0 ? 0 : settings.hand === 'right' ? 0.15 : -0.15;
+    this.game.throwProgrammatically({ startX, power: 0.55, angle: 0, spin });
+  }
+
+  // -------------------------------------------------------------------------
+  // 드릴/관찰 안내 바
+  // -------------------------------------------------------------------------
+
+  private showBar(): void {
+    this.bar.hidden = false;
+  }
+
+  private updateBar(message: string | null): void {
+    const s = this.session;
+    if (s === null) return;
+
+    if (s.kind === 'observe') {
+      this.bar.innerHTML = `
+        <div class="drill-bar-goal">👀 공이 굴러간 길을 봐요 (${s.count} / ${s.times})</div>
+        <div class="drill-bar-msg">${message ?? '아래 버튼으로 굴리거나 직접 드래그해 봐요.'}</div>
+        <div class="drill-bar-actions">
+          <button type="button" class="text-btn" data-act="demo-straight">곧은 공 굴리기</button>
+          <button type="button" class="text-btn" data-act="demo-hook">휘는 공 굴리기</button>
+          <button type="button" class="text-btn" data-act="quit">그만하기</button>
+        </div>`;
+      return;
+    }
+
+    const runner = s.runner;
+    const isScoreDrill = runner.drill.goal.kind === 'minScore';
+    const progress = isScoreDrill
+      ? `지금 ${this.game.machine.scorecard.total}점 · ${runner.attemptsUsed}번 던졌어요`
+      : `성공 ${runner.successes} / ${runner.target} · 기회 ${runner.attemptsMax - runner.attemptsUsed}번 남음`;
+
+    this.bar.innerHTML = `
+      <div class="drill-bar-goal">🎯 ${runner.goalLabel}</div>
+      <div class="drill-bar-progress">${progress}</div>
+      <div class="drill-bar-msg">${message ?? runner.hint ?? ''}</div>
+      <div class="drill-bar-actions">
+        <button type="button" class="text-btn" data-act="quit">그만하기</button>
+      </div>`;
+  }
+}

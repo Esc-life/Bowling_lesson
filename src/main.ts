@@ -2,11 +2,14 @@
  * 앱 시작점.
  *
  * 흐름: 손 고르기(첫 실행만) → 게임 시작 → 조준·투구 반복
+ *       우상단 '배우기' 버튼 → 튜토리얼 (영역 메뉴 → 레슨 → 퀴즈/드릴)
  *
  * 쿼리스트링
- *   ?debug=1   숫자 키(0~9, 0=10개)로 물리를 건너뛰고 핀 수를 직접 입력.
- *              점수판 로직을 물리 대기 없이 10프레임 통과시킬 수 있다.
- *   ?hand=left 손 선택 화면을 건너뛰고 바로 지정 (수업 시연용)
+ *   ?debug=1    숫자 키(0~9, 0=10개)로 물리를 건너뛰고 핀 수를 직접 입력.
+ *               점수판 로직을 물리 대기 없이 10프레임 통과시킬 수 있다.
+ *   ?hand=left  손 선택 화면을 건너뛰고 바로 지정 (수업 시연용)
+ *   ?lesson=B3  해당 레슨을 바로 연다 (수업 딥링크)
+ *   ?area=D     영역 메뉴를 해당 영역이 강조된 채로 연다
  */
 
 import { Game } from './core/Game';
@@ -16,7 +19,9 @@ import { Hud } from './ui/Hud';
 import { HandPicker } from './ui/HandPicker';
 import { ObserveControls } from './ui/ObserveControls';
 import { Scoreboard } from './ui/Scoreboard';
+import { TutorialUI } from './ui/TutorialUI';
 import type { ThrowResult } from './rules/FrameMachine';
+import type { AreaId } from './tutorial/types';
 
 const params = new URLSearchParams(location.search);
 const debugMode = params.get('debug') === '1';
@@ -68,6 +73,20 @@ async function main(): Promise<void> {
   ui.appendChild(scoreboard.element);
   ui.appendChild(observe.element);
 
+  const tutorial = new TutorialUI(game, ui, {
+    onSessionChange: ({ hideScoreboard }) => {
+      // 핀 일부만 세우는 드릴에서는 점수가 의미가 없어 점수판을 감춘다
+      scoreboard.element.classList.toggle('is-hidden', hideScoreboard);
+    },
+  });
+
+  const learnBtn = document.createElement('button');
+  learnBtn.type = 'button';
+  learnBtn.className = 'text-btn learn-btn';
+  learnBtn.textContent = '📖 배우기';
+  learnBtn.addEventListener('click', () => tutorial.openMenu());
+  ui.appendChild(learnBtn);
+
   const refresh = (): void => {
     const machine = game.machine;
     hud.setFrame(machine.currentFrame, machine.ballInFrame);
@@ -86,11 +105,17 @@ async function main(): Promise<void> {
 
   game.on({
     onStateChanged: refresh,
-    onReady: refresh,
-    onThrowResolved: (result: ThrowResult) => {
-      if (result.message !== null) hud.showBanner(result.message);
+    onReady: () => {
+      tutorial.handleReady();
       refresh();
-      if (result.gameOver) {
+    },
+    onThrowResolved: (result: ThrowResult) => {
+      // 드릴 중에는 튜토리얼이 결과를 소비한다 — 핀 일부만 세운 드릴에서는
+      // 기계가 계산한 "스트라이크!" 문구가 틀리므로 기본 배너를 막는다.
+      const suppressBanner = tutorial.handleThrowResolved(result);
+      if (!suppressBanner && result.message !== null) hud.showBanner(result.message);
+      refresh();
+      if (!suppressBanner && result.gameOver) {
         hud.showBanner(`끝! ${game.machine.scorecard.total}점`, 4000);
       }
     },
@@ -131,6 +156,17 @@ async function main(): Promise<void> {
   game.start();
   refresh();
   loading.classList.add('is-hidden');
+
+  // 수업용 딥링크 — 특정 레슨/영역을 바로 연다
+  const lessonParam = params.get('lesson');
+  const areaParam = params.get('area');
+  if (lessonParam !== null) {
+    tutorial.openLesson(lessonParam.toUpperCase());
+  } else if (areaParam !== null) {
+    const area = areaParam.toUpperCase();
+    const isAreaId = (v: string): v is AreaId => ['A', 'B', 'C', 'D', 'E'].includes(v);
+    tutorial.openMenu(isAreaId(area) ? area : undefined);
+  }
 
   if (debugMode) {
     const debug = new DebugPanel();

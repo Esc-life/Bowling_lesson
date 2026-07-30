@@ -1,0 +1,455 @@
+/*
+ * 초등 고학년 대상이라 글씨와 버튼을 크게 둔다.
+ * 터치패드·태블릿에서도 눌리도록 버튼 최소 크기를 44px로 잡았다.
+ */
+
+:root {
+  --ink: #f2f5fa;
+  --ink-dim: #9aa6b6;
+  --panel: rgba(16, 21, 30, 0.92);
+  --panel-solid: #141922;
+  --accent: #4fc3f7;
+  --good: #6ee7a0;
+  --warn: #ffd166;
+  --radius: 14px;
+  --font: 'Malgun Gothic', '맑은 고딕', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0e13;
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app,
+#stage {
+  position: absolute;
+  inset: 0;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* UI 안의 실제 조작 요소만 클릭을 받는다 — 나머지는 3D 드래그로 통과 */
+#ui button,
+#ui input,
+#ui label,
+#ui .panel,
+#ui .scoreboard,
+#ui .observe {
+  pointer-events: auto;
+}
+
+#loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  color: var(--ink-dim);
+  background: #0b0e13;
+  z-index: 50;
+}
+
+#loading.is-hidden {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- 버튼 */
+
+button {
+  font-family: var(--font);
+  font-size: 16px;
+  color: var(--ink);
+  background: rgba(40, 50, 66, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  min-height: 44px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+button:hover {
+  background: rgba(58, 72, 94, 0.95);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+.round-btn {
+  width: 56px;
+  height: 56px;
+  min-height: 56px;
+  border-radius: 50%;
+  font-size: 20px;
+  padding: 0;
+}
+
+.text-btn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+  font-size: 14px;
+  min-height: 38px;
+  padding: 6px 14px;
+}
+
+/* ---------------------------------------------------------------- HUD */
+
+.hud {
+  position: absolute;
+  inset: 0;
+}
+
+/* 점수판이 위 가운데를 쓰므로 프레임 표시는 왼쪽으로 비켜 둔다 */
+.hud-top {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
+.frame-label {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--panel);
+  padding: 8px 18px;
+  border-radius: 999px;
+}
+
+.hud-banner {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  transform: translate(-50%, -10px);
+  font-size: clamp(34px, 7vw, 68px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--warn);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
+  white-space: nowrap;
+}
+
+.hud-banner.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.hud-bottom {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, 92vw);
+}
+
+.hud-hint {
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--panel);
+  padding: 10px 18px;
+  border-radius: 999px;
+  text-align: center;
+}
+
+.hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.position-label {
+  min-width: 86px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.power-wrap {
+  width: 100%;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+.power-wrap.is-active {
+  opacity: 1;
+}
+
+.power-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  transition: width 0.06s linear;
+}
+
+.restart-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+/* ---------------------------------------------------------------- 점수판 */
+
+/* 실제 볼링장 점수판도 위에 걸려 있다. 아래에 두면 조작 UI와 겹친다. */
+.scoreboard {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  background: var(--panel);
+  padding: 8px;
+  border-radius: var(--radius);
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreboard .frames {
+  display: flex;
+  gap: 2px;
+}
+
+.scoreboard .frame {
+  min-width: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  overflow: hidden;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.scoreboard .frame--tenth {
+  min-width: 60px;
+}
+
+.scoreboard .frame--active {
+  border-color: var(--accent);
+  background: rgba(79, 195, 247, 0.12);
+}
+
+.scoreboard .frame--highlight {
+  border-color: var(--warn);
+  background: rgba(255, 209, 102, 0.16);
+}
+
+.scoreboard .frame-no {
+  font-size: 10px;
+  color: var(--ink-dim);
+  padding: 2px 0;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.scoreboard .rolls {
+  display: flex;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px 0;
+}
+
+.scoreboard .roll {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 18px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+}
+
+.scoreboard .cumulative {
+  font-size: 15px;
+  font-weight: 800;
+  padding: 3px 0 5px;
+  min-height: 24px;
+}
+
+.scoreboard .blank {
+  color: var(--warn);
+}
+
+.scoreboard .total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  margin-left: 4px;
+}
+
+.scoreboard .total-label {
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+
+.scoreboard .total-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--warn);
+}
+
+.scoreboard--compact {
+  position: static;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------- 관찰 모드 */
+
+.observe {
+  position: absolute;
+  top: 68px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  background: var(--panel);
+  padding: 12px;
+  border-radius: var(--radius);
+}
+
+.obs-btn {
+  font-size: 14px;
+  min-height: 38px;
+  padding: 6px 14px;
+  width: 100%;
+}
+
+.obs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+  width: 100%;
+}
+
+.obs-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* ---------------------------------------------------------------- 디버그 */
+
+.debug-panel {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  min-width: 210px;
+  background: var(--panel);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+.debug-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0;
+}
+
+.debug-row b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- 오버레이 */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 9, 14, 0.82);
+  backdrop-filter: blur(6px);
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.overlay .panel {
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--panel-solid);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 32px;
+  text-align: center;
+}
+
+.overlay h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.overlay .lead {
+  margin: 0 0 24px;
+  font-size: 19px;
+  color: var(--ink);
+}
+
+.overlay .note {
+  margin: 20px 0 0;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+/* 손 고르기 */
+
+.hand-choices {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.hand-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 28px;
+  min-height: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.hand-icon {
+  font-size: 52px;
+  line-height: 1;
+}
+
+.hand-icon--flip {
+  transform: scaleX(-1);
+}

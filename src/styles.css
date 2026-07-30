@@ -1,18 +1,61 @@
 /*
+ * 디자인 방향: 실제 3D 장면의 소재에서 색을 가져왔다 — 핀의 빨간 두 줄 무늬,
+ * 레인의 단풍나무, 볼링공의 로열블루. 화면 속 게임과 그 위의 UI가 같은
+ * 세계에서 나온 것처럼 보이게 하려는 것이다(막연한 "게임 UI 사이언"보다).
+ *
+ * 두 표면을 구분해 쓴다:
+ *  - 게임 화면 위 HUD(점수판, 파워 게이지 등) — 어둡고 반투명, 3D 장면을 가리지 않는다.
+ *  - 튜토리얼 전체화면 패널(레슨, 메뉴, 리포트) — 밝은 크림 "종이" 카드.
+ *    어두운 볼링장 안에서 환하게 켜진 점수 전광판/책자처럼, 배우는 순간과
+ *    노는 순간을 시각적으로 분리한다.
+ *
  * 초등 고학년 대상이라 글씨와 버튼을 크게 둔다.
  * 터치패드·태블릿에서도 눌리도록 버튼 최소 크기를 44px로 잡았다.
  */
 
 :root {
-  --ink: #f2f5fa;
-  --ink-dim: #9aa6b6;
-  --panel: rgba(16, 21, 30, 0.92);
-  --panel-solid: #141922;
-  --accent: #4fc3f7;
-  --good: #6ee7a0;
-  --warn: #ffd166;
-  --radius: 14px;
-  --font: 'Malgun Gothic', '맑은 고딕', system-ui, -apple-system, sans-serif;
+  /* 무대 — WebGL 씬 배경(SceneSetup.ts)과 정확히 같은 값. 로딩 중 이음매가 안 보이게 */
+  --stage: #0b0e13;
+
+  /* HUD(3D 장면 위, 어두운 반투명 칩)에서만 쓰는 글자색 — 항상 밝다 */
+  --ink-hud: #f4ede0;
+  --ink-hud-dim: #b3a690;
+
+  /* 종이(튜토리얼 전체화면 패널)에서만 쓰는 글자색 — 항상 어둡다 */
+  --ink-paper: #2a2016;
+  --ink-paper-dim: #6b5c47;
+
+  /* 기본값(문서 전체 배경 위) — HUD와 같은 어두운 계열 */
+  --ink: var(--ink-hud);
+  --ink-dim: var(--ink-hud-dim);
+
+  --panel: rgba(28, 23, 18, 0.88);
+  --panel-solid: #1c1712;
+  --paper: #f6f1e4;
+  --paper-dim: #ece1c9;
+
+  /* 브랜드 3색 + 정답색 — 전부 게임 화면 속 실제 소재에서 가져왔다 */
+  --pin-red: #d8342c;
+  --pin-red-deep: #a1241d;
+  --lane-gold: #e0a94c;
+  --lane-gold-deep: #a97b2e;
+  --ball-blue: #3a66c9;
+  --ball-blue-deep: #2b4c99;
+  --felt-green: #4a9b5e;
+  --felt-green-deep: #326e42;
+
+  --accent: var(--ball-blue);
+  --good: var(--felt-green);
+  --warn: var(--lane-gold);
+  --danger: var(--pin-red);
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --border-w: 3px;
+
+  /* Jua: 핀·공처럼 둥글고 두꺼운 제목/숫자용. Gothic A1: 본문·버튼용 */
+  --font-display: 'Jua', 'Malgun Gothic', '맑은 고딕', system-ui, sans-serif;
+  --font: 'Gothic A1', 'Malgun Gothic', '맑은 고딕', system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -24,7 +67,7 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #0b0e13;
+  background: var(--stage);
   color: var(--ink);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
@@ -62,14 +105,25 @@ body {
   display: none !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 #loading {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   font-size: 20px;
-  color: var(--ink-dim);
-  background: #0b0e13;
+  color: var(--ink-hud-dim);
+  background: var(--stage);
   z-index: 50;
 }
 
@@ -82,22 +136,38 @@ body {
 button {
   font-family: var(--font);
   font-size: 16px;
-  color: var(--ink);
-  background: rgba(40, 50, 66, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: var(--radius);
-  padding: 10px 16px;
+  font-weight: 700;
+  color: var(--ink-hud);
+  background: #2c241b;
+  border: var(--border-w) solid rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
   min-height: 44px;
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
 }
 
 button:hover {
-  background: rgba(58, 72, 94, 0.95);
+  background: #382e22;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
 }
 
 button:active {
-  transform: translateY(1px);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+button:focus-visible {
+  outline: 3px solid var(--ball-blue);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.6;
+  transform: none !important;
 }
 
 .round-btn {
@@ -105,16 +175,40 @@ button:active {
   height: 56px;
   min-height: 56px;
   border-radius: 50%;
+  border-color: var(--lane-gold-deep);
   font-size: 20px;
   padding: 0;
 }
 
 .text-btn {
   background: transparent;
-  border-color: rgba(255, 255, 255, 0.2);
+  border: none;
+  box-shadow: none;
+  color: var(--ink-hud);
+  font-weight: 600;
   font-size: 14px;
   min-height: 38px;
-  padding: 6px 14px;
+  padding: 6px 12px;
+}
+
+.text-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: none;
+  box-shadow: none;
+}
+
+.text-btn:active {
+  transform: none;
+  box-shadow: none;
+}
+
+/* 종이(밝은) 패널 안의 텍스트 버튼은 어두운 잉크색을 쓴다 */
+.overlay .text-btn {
+  color: var(--ink-paper-dim);
+}
+
+.overlay .text-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* ---------------------------------------------------------------- HUD */
@@ -132,10 +226,11 @@ button:active {
 }
 
 .frame-label {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--ink-hud);
   background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 8px 18px;
   border-radius: 999px;
 }
@@ -144,20 +239,22 @@ button:active {
   position: absolute;
   top: 24%;
   left: 50%;
-  transform: translate(-50%, -10px);
-  font-size: clamp(34px, 7vw, 68px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--warn);
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+  transform: translate(-50%, -10px) scale(0.85);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 7vw, 72px);
+  letter-spacing: -0.01em;
+  color: var(--lane-gold);
+  -webkit-text-stroke: 2px rgba(0, 0, 0, 0.5);
+  paint-order: stroke fill;
+  text-shadow: 0 6px 0 rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.6);
   opacity: 0;
-  transition: opacity 0.25s, transform 0.25s;
+  transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   white-space: nowrap;
 }
 
 .hud-banner.is-visible {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, 0) scale(1);
 }
 
 .hud-bottom {
@@ -174,8 +271,10 @@ button:active {
 
 .hud-hint {
   font-size: 16px;
-  color: var(--ink);
+  font-weight: 600;
+  color: var(--ink-hud);
   background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 10px 18px;
   border-radius: 999px;
   text-align: center;
@@ -192,16 +291,17 @@ button:active {
   text-align: center;
   font-size: 15px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--lane-gold);
 }
 
 .power-wrap {
   width: 100%;
-  height: 14px;
-  background: rgba(255, 255, 255, 0.12);
+  height: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   overflow: hidden;
-  opacity: 0.35;
+  opacity: 0.4;
   transition: opacity 0.15s;
 }
 
@@ -222,6 +322,12 @@ button:active {
   right: 16px;
 }
 
+.learn-btn {
+  position: absolute;
+  top: 16px;
+  right: 118px;
+}
+
 /* ---------------------------------------------------------------- 점수판 */
 
 /* 실제 볼링장 점수판도 위에 걸려 있다. 아래에 두면 조작 UI와 겹친다. */
@@ -233,9 +339,11 @@ button:active {
   display: flex;
   align-items: stretch;
   gap: 6px;
+  color: var(--ink-hud);
   background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 8px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -250,7 +358,7 @@ button:active {
   border-radius: 8px;
   overflow: hidden;
   text-align: center;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .scoreboard .frame--tenth {
@@ -258,20 +366,20 @@ button:active {
 }
 
 .scoreboard .frame--active {
-  border-color: var(--accent);
-  background: rgba(79, 195, 247, 0.12);
+  border-color: var(--ball-blue);
+  background: rgba(58, 102, 201, 0.2);
 }
 
 .scoreboard .frame--highlight {
-  border-color: var(--warn);
-  background: rgba(255, 209, 102, 0.16);
+  border-color: var(--lane-gold);
+  background: rgba(224, 169, 76, 0.22);
 }
 
 .scoreboard .frame-no {
   font-size: 10px;
-  color: var(--ink-dim);
+  color: var(--ink-hud-dim);
   padding: 2px 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .scoreboard .rolls {
@@ -288,19 +396,19 @@ button:active {
   height: 18px;
   font-size: 13px;
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
   border-radius: 3px;
 }
 
 .scoreboard .cumulative {
-  font-size: 15px;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 16px;
   padding: 3px 0 5px;
   min-height: 24px;
 }
 
 .scoreboard .blank {
-  color: var(--warn);
+  color: var(--lane-gold);
 }
 
 .scoreboard .total {
@@ -315,18 +423,23 @@ button:active {
 
 .scoreboard .total-label {
   font-size: 10px;
-  color: var(--ink-dim);
+  color: var(--ink-hud-dim);
 }
 
 .scoreboard .total-value {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--warn);
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--lane-gold);
 }
 
 .scoreboard--compact {
   position: static;
   transform: none;
+}
+
+/* 종이(밝은) 패널 안에 점수판 다이어그램이 들어갈 때는 색을 뒤집는다 */
+.diagram--scorecard .scoreboard {
+  color: var(--ink-hud);
 }
 
 /* ---------------------------------------------------------------- 관찰 모드 */
@@ -339,13 +452,16 @@ button:active {
   flex-direction: column;
   gap: 8px;
   align-items: flex-end;
+  color: var(--ink-hud);
   background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 12px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 
 .obs-btn {
   font-size: 14px;
+  font-weight: 600;
   min-height: 38px;
   padding: 6px 14px;
   width: 100%;
@@ -356,7 +472,7 @@ button:active {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: var(--ink);
+  color: var(--ink-hud);
   cursor: pointer;
   width: 100%;
 }
@@ -364,7 +480,7 @@ button:active {
 .obs-toggle input {
   width: 18px;
   height: 18px;
-  accent-color: var(--accent);
+  accent-color: var(--ball-blue);
 }
 
 /* ---------------------------------------------------------------- 디버그 */
@@ -374,12 +490,13 @@ button:active {
   bottom: 16px;
   left: 16px;
   min-width: 210px;
+  color: var(--ink-hud-dim);
   background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-dim);
   pointer-events: none;
 }
 
@@ -391,11 +508,11 @@ button:active {
 }
 
 .debug-row b {
-  color: var(--ink);
+  color: var(--ink-hud);
   font-weight: 700;
 }
 
-/* ---------------------------------------------------------------- 오버레이 */
+/* ---------------------------------------------------------------- 오버레이(종이 패널) */
 
 .overlay {
   position: absolute;
@@ -406,34 +523,73 @@ button:active {
   backdrop-filter: blur(6px);
   z-index: 20;
   pointer-events: auto;
+  padding: 20px;
 }
 
 .overlay .panel {
+  position: relative;
   width: min(560px, 92vw);
   max-height: 88vh;
   overflow-y: auto;
-  background: var(--panel-solid);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  padding: 32px;
+  color: var(--ink-paper);
+  background: var(--paper);
+  border: var(--border-w) solid var(--ink-paper);
+  border-radius: 24px;
+  padding: 40px 32px 32px;
   text-align: center;
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.28), 0 24px 48px rgba(0, 0, 0, 0.5);
+  animation: panel-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* 종이 패널 안에서는 --ink/--ink-dim이 잉크(어두운) 값을 가리키게 한다.
+   HUD류 하위 요소(예: 점수판 다이어그램)는 각자 --ink-hud를 직접 쓰므로 영향받지 않는다. */
+.overlay .panel {
+  --ink: var(--ink-paper);
+  --ink-dim: var(--ink-paper-dim);
+}
+
+/* 볼링핀 목의 두 줄 무늬를 본뜬 장식 리본 — 이 앱의 모든 패널에 붙는 서명 */
+.overlay .panel::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 84px;
+  height: 18px;
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(180deg, var(--lane-gold) 0 45%, var(--pin-red) 45% 100%);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.22);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .overlay h1 {
   margin: 0 0 8px;
-  font-size: 28px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--ink-paper);
 }
 
 .overlay .lead {
   margin: 0 0 24px;
   font-size: 19px;
-  color: var(--ink);
+  color: var(--ink-paper);
 }
 
 .overlay .note {
   margin: 20px 0 0;
   font-size: 14px;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 /* 손 고르기 */
@@ -452,7 +608,14 @@ button:active {
   padding: 24px 28px;
   min-height: 0;
   font-size: 18px;
-  font-weight: 700;
+  color: var(--ink-hud);
+  background: var(--ball-blue);
+  border-color: var(--ball-blue-deep);
+  box-shadow: 0 4px 0 var(--ball-blue-deep);
+}
+
+.hand-choice:hover {
+  background: #4574d9;
 }
 
 .hand-icon {
@@ -466,12 +629,6 @@ button:active {
 
 /* ---------------------------------------------------------------- 튜토리얼 공통 */
 
-.learn-btn {
-  position: absolute;
-  top: 16px;
-  right: 118px;
-}
-
 .tutorial-overlay .panel {
   text-align: left;
   width: min(640px, 94vw);
@@ -483,17 +640,21 @@ button:active {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 2px dashed rgba(42, 32, 22, 0.16);
 }
 
 .tut-crumb {
   font-size: 14px;
   font-weight: 700;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .tut-title {
   margin: 0 0 14px;
-  font-size: 26px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--ink-paper);
 }
 
 .tut-body p {
@@ -512,29 +673,30 @@ button:active {
 .tut-callout {
   margin: 12px 0;
   padding: 12px 16px;
-  background: rgba(255, 209, 102, 0.14);
-  border-left: 4px solid var(--warn);
-  border-radius: 8px;
+  background: rgba(224, 169, 76, 0.18);
+  border: 2px solid var(--lane-gold);
+  border-radius: var(--radius-sm);
   font-size: 17px;
   font-weight: 700;
+  color: var(--ink-paper);
 }
 
 .tut-notice {
   margin: 0 0 14px;
   padding: 10px 14px;
-  background: rgba(79, 195, 247, 0.12);
-  border: 1px dashed rgba(79, 195, 247, 0.5);
-  border-radius: 10px;
+  background: rgba(58, 102, 201, 0.1);
+  border: 2px dashed var(--ball-blue);
+  border-radius: var(--radius-sm);
   font-size: 14px;
-  color: var(--accent);
+  color: var(--ball-blue-deep);
 }
 
 /* 본문의 용어 링크 */
 .term {
   all: unset;
   cursor: pointer;
-  color: var(--accent);
-  font-weight: 700;
+  color: var(--ball-blue-deep);
+  font-weight: 800;
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
@@ -542,19 +704,20 @@ button:active {
 .glossary-pop {
   position: absolute;
   z-index: 5;
-  background: #1d2430;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
+  color: var(--ink-paper);
+  background: var(--paper);
+  border: var(--border-w) solid var(--ink-paper);
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 15px;
   line-height: 1.5;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25), 0 10px 24px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
 }
 
 .glossary-pop b {
   display: block;
-  color: var(--accent);
+  color: var(--ball-blue-deep);
   margin-bottom: 4px;
 }
 
@@ -566,7 +729,8 @@ button:active {
 }
 
 .diagram canvas {
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
+  border: 2px solid rgba(42, 32, 22, 0.14);
   max-width: 100%;
 }
 
@@ -591,7 +755,7 @@ button:active {
 
 .approach-controls input[type='range'] {
   flex: 1;
-  accent-color: var(--accent);
+  accent-color: var(--ball-blue);
 }
 
 /* 완료 조건 영역 */
@@ -605,53 +769,55 @@ button:active {
 
 .big-btn {
   font-size: 18px;
-  font-weight: 700;
-  padding: 14px 20px;
-  border-radius: 14px;
+  font-weight: 800;
+  padding: 15px 20px;
+  border-radius: var(--radius-sm);
   width: 100%;
 }
 
 .big-btn--accent {
-  background: rgba(79, 195, 247, 0.2);
-  border-color: var(--accent);
-  color: var(--accent);
+  color: #fff;
+  background: var(--pin-red);
+  border-color: var(--pin-red-deep);
+  box-shadow: 0 4px 0 var(--pin-red-deep);
 }
 
 .big-btn--accent:hover {
-  background: rgba(79, 195, 247, 0.3);
+  background: #e2483f;
 }
 
 .tut-done {
   font-size: 15px;
-  font-weight: 700;
-  color: var(--good);
+  font-weight: 800;
+  color: var(--felt-green-deep);
 }
 
 .drill-goal {
   font-size: 17px;
   font-weight: 700;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  background: var(--paper-dim);
+  border-radius: var(--radius-sm);
+  color: var(--ink-paper);
 }
 
 .drill-result {
   font-size: 18px;
   font-weight: 800;
   padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(255, 209, 102, 0.14);
-  color: var(--warn);
+  border-radius: var(--radius-sm);
+  background: rgba(224, 169, 76, 0.22);
+  color: var(--lane-gold-deep);
 }
 
 .drill-result.is-success {
-  background: rgba(110, 231, 160, 0.14);
-  color: var(--good);
+  background: rgba(74, 155, 94, 0.18);
+  color: var(--felt-green-deep);
 }
 
 .tut-observe-note {
   font-size: 15px;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .tut-foot {
@@ -670,8 +836,9 @@ button:active {
 
 .quiz-prompt {
   font-size: 21px;
-  font-weight: 700;
+  font-weight: 800;
   margin: 4px 0 12px;
+  color: var(--ink-paper);
 }
 
 .quiz-choices {
@@ -683,47 +850,62 @@ button:active {
 .choice-btn {
   text-align: left;
   font-size: 17px;
+  font-weight: 700;
   padding: 13px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-hud);
+  background: #2c241b;
 }
 
 .choice-btn:disabled {
   cursor: default;
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 .choice-btn.is-correct {
-  border-color: var(--good);
-  background: rgba(110, 231, 160, 0.16);
-  color: var(--good);
+  border-color: var(--felt-green-deep);
+  background: var(--felt-green);
+  color: #fff;
   opacity: 1;
-  font-weight: 700;
+  animation: choice-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .choice-btn.is-wrong {
-  border-color: #ff7b7b;
-  background: rgba(255, 123, 123, 0.14);
-  color: #ff9d9d;
+  border-color: var(--pin-red-deep);
+  background: var(--pin-red);
+  color: #fff;
   opacity: 1;
+}
+
+@keyframes choice-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.035);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .quiz-feedback {
   margin-top: 12px;
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
   line-height: 1.5;
 }
 
 .quiz-feedback.is-correct {
-  background: rgba(110, 231, 160, 0.14);
-  color: var(--good);
-  font-weight: 700;
+  background: rgba(74, 155, 94, 0.18);
+  color: var(--felt-green-deep);
+  font-weight: 800;
 }
 
 .quiz-feedback.is-wrong {
-  background: rgba(255, 209, 102, 0.12);
-  color: var(--ink);
+  background: var(--paper-dim);
+  color: var(--ink-paper);
 }
 
 .quiz-summary {
@@ -737,8 +919,9 @@ button:active {
 }
 
 .quiz-summary-text {
-  font-size: 21px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink-paper);
 }
 
 /* ---------------------------------------------------------------- 영역 메뉴 */
@@ -750,29 +933,30 @@ button:active {
   margin-bottom: 14px;
   font-size: 14px;
   font-weight: 700;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .menu-overall-bar {
   flex: 1;
-  height: 10px;
+  height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--paper-dim);
+  border: 2px solid rgba(42, 32, 22, 0.14);
   overflow: hidden;
 }
 
 .menu-overall-bar > div {
   height: 100%;
-  background: var(--good);
+  background: var(--felt-green);
   border-radius: 999px;
-  transition: width 0.3s;
+  transition: width 0.4s ease;
 }
 
 .menu-alldone {
   text-align: center;
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--warn);
+  font-family: var(--font-display);
+  font-size: 19px;
+  color: var(--lane-gold-deep);
   padding: 8px 0;
 }
 
@@ -784,15 +968,16 @@ button:active {
 }
 
 .area-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
+  background: #fff;
+  border: 2px solid rgba(42, 32, 22, 0.14);
+  border-radius: var(--radius-sm);
   padding: 14px;
 }
 
 .area-card--focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.3);
+  border-color: var(--ball-blue);
+  border-width: var(--border-w);
+  box-shadow: 0 0 0 3px rgba(58, 102, 201, 0.18);
 }
 
 .area-head {
@@ -800,23 +985,30 @@ button:active {
   justify-content: space-between;
   align-items: baseline;
   font-size: 17px;
+  color: var(--ink-paper);
+}
+
+.area-head b {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 400;
 }
 
 .area-count {
   font-size: 14px;
   font-weight: 700;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .area-summary {
   margin: 4px 0 8px;
   font-size: 14px;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .area-recommend {
   font-size: 13px;
-  color: var(--warn);
+  color: var(--lane-gold-deep);
   margin-bottom: 8px;
 }
 
@@ -832,13 +1024,20 @@ button:active {
   gap: 10px;
   text-align: left;
   font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-paper);
   padding: 9px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  background: var(--paper-dim);
+  border: 2px solid transparent;
+}
+
+.lesson-row:hover {
+  border-color: rgba(42, 32, 22, 0.16);
 }
 
 .lesson-row.is-done {
-  opacity: 0.85;
+  background: rgba(74, 155, 94, 0.12);
 }
 
 .lesson-dot {
@@ -847,15 +1046,18 @@ button:active {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  border: 2px solid rgba(42, 32, 22, 0.22);
   font-size: 13px;
   font-weight: 800;
-  color: var(--good);
+  color: var(--felt-green-deep);
   flex-shrink: 0;
+  background: #fff;
 }
 
 .lesson-row.is-done .lesson-dot {
-  border-color: var(--good);
+  border-color: var(--felt-green);
+  background: var(--felt-green);
+  color: #fff;
 }
 
 .lesson-name {
@@ -864,13 +1066,13 @@ button:active {
 
 .lesson-score {
   font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
+  font-weight: 800;
+  color: var(--ball-blue-deep);
 }
 
 .lesson-mins {
   font-size: 12px;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .menu-foot {
@@ -893,27 +1095,27 @@ button:active {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: var(--warn);
+  color: var(--pin-red-deep);
 }
 
 .text-btn--danger {
-  border-color: rgba(255, 123, 123, 0.6);
-  color: #ff9d9d;
+  color: var(--pin-red-deep);
 }
 
 /* ---------------------------------------------------------------- 리포트 */
 
 .report-headline {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--warn);
+  font-family: var(--font-display);
+  font-size: 21px;
+  color: var(--lane-gold-deep);
   margin-bottom: 18px;
 }
 
 .report-screen h2 {
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 800;
   margin: 18px 0 8px;
-  color: var(--ink-dim);
+  color: var(--ink-paper-dim);
 }
 
 .report-area-row {
@@ -922,6 +1124,7 @@ button:active {
   gap: 12px;
   padding: 6px 0;
   font-size: 15px;
+  color: var(--ink-paper);
 }
 
 .report-area-name {
@@ -931,15 +1134,16 @@ button:active {
 
 .report-area-bar {
   flex: 1;
-  height: 10px;
+  height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--paper-dim);
+  border: 2px solid rgba(42, 32, 22, 0.14);
   overflow: hidden;
 }
 
 .report-area-bar > div {
   height: 100%;
-  background: var(--accent);
+  background: var(--ball-blue);
   border-radius: 999px;
 }
 
@@ -948,7 +1152,8 @@ button:active {
   justify-content: space-between;
   padding: 5px 0;
   font-size: 15px;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  color: var(--ink-paper);
+  border-bottom: 2px dashed rgba(42, 32, 22, 0.14);
 }
 
 /* ---------------------------------------------------------------- 드릴 안내 바 */
@@ -960,7 +1165,9 @@ button:active {
   left: 50%;
   transform: translateX(-50%);
   width: min(460px, 92vw);
+  color: var(--ink-hud);
   background: var(--panel);
+  border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius);
   padding: 12px 16px;
   text-align: center;
@@ -977,12 +1184,12 @@ button:active {
 .drill-bar-progress {
   font-size: 14px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--lane-gold);
 }
 
 .drill-bar-msg {
   font-size: 15px;
-  color: var(--warn);
+  color: var(--lane-gold);
   min-height: 20px;
 }
 

@@ -87,8 +87,8 @@ export class Hud {
   setPower(power: number, active: boolean): void {
     this.powerWrap.classList.toggle('is-active', active);
     this.powerFill.style.width = `${Math.round(power * 100)}%`;
-    // 초록 → 노랑 → 빨강
-    this.powerFill.style.background = `hsl(${Math.round(120 * (1 - power))} 80% 52%)`;
+    // 레인 골드(약할 때) → 핀 레드(셀 때) — 앱 색 체계 안에서만 움직인다
+    this.powerFill.style.background = `hsl(${Math.round(40 - 36 * power)} 72% 54%)`;
   }
 
   /** 서는 위치를 보드 번호로 알려 준다 (조준 레슨과 연결된다) */

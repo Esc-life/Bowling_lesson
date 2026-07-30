@@ -63,8 +63,8 @@ export class AimGuide {
     const attr = this.line.geometry.getAttribute('position') as THREE.BufferAttribute;
     attr.needsUpdate = true;
 
-    // 초록 → 노랑 → 빨강. 파워가 셀수록 위험하다는 신호.
-    this.material.color.setHSL(0.33 * (1 - power), 0.75, 0.6);
+    // 레인 골드 → 핀 레드. 파워가 셀수록 진해지며, HUD 파워 게이지와 같은 색 규칙을 쓴다.
+    this.material.color.setHSL((40 - 36 * power) / 360, 0.72, 0.58);
   }
 
   dispose(): void {

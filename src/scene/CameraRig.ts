@@ -56,7 +56,10 @@ export class CameraRig {
     if (!thrown) {
       this.setMode('aim');
     } else if (ballZ > PINDECK_CUT_Z) {
-      this.setMode('pindeck');
+      // follow 카메라는 공을 바짝 쫓아가고 pindeck 카메라는 핀 뒤 고정
+      // 위치라, 둘 사이를 보간하면 공이 핀 쪽으로 순간이동하는 것처럼
+      // 보인다("점프"). 그래서 부드럽게 넘기지 않고 실제로 컷한다.
+      this.setMode('pindeck', true);
     } else {
       this.setMode('follow');
     }

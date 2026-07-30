@@ -42,7 +42,9 @@ export class Hud {
           <div class="power-fill"></div>
         </div>
       </div>
-      <button type="button" class="text-btn restart-btn" data-act="restart">처음부터</button>
+      <button type="button" class="text-btn restart-btn" data-act="restart" aria-label="처음부터">
+        <span aria-hidden="true">🔄</span><span class="btn-label"> 처음부터</span>
+      </button>
     `;
 
     this.frameLabel = this.must('.frame-label');
@@ -53,8 +55,8 @@ export class Hud {
     this.positionLabel = this.must('.position-label');
 
     this.element.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      switch (target.dataset['act']) {
+      const target = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
+      switch (target?.dataset['act']) {
         case 'left':
           callbacks.onMoveLeft();
           break;

@@ -83,7 +83,8 @@ async function main(): Promise<void> {
   const learnBtn = document.createElement('button');
   learnBtn.type = 'button';
   learnBtn.className = 'text-btn learn-btn';
-  learnBtn.textContent = '📖 배우기';
+  learnBtn.setAttribute('aria-label', '배우기');
+  learnBtn.innerHTML = '<span aria-hidden="true">📖</span><span class="btn-label"> 배우기</span>';
   learnBtn.addEventListener('click', () => tutorial.openMenu());
   ui.appendChild(learnBtn);
 

@@ -36,7 +36,7 @@ export class ObserveControls {
     `;
 
     this.element.addEventListener('click', (e) => {
-      const act = (e.target as HTMLElement).dataset['act'];
+      const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset['act'];
       if (act === 'speed') this.cycleSpeed();
       if (act === 'pause') this.togglePause();
     });

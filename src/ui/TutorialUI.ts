@@ -89,7 +89,7 @@ export class TutorialUI {
     this.bar.className = 'drill-bar';
     this.bar.hidden = true;
     this.bar.addEventListener('click', (e) => {
-      const act = (e.target as HTMLElement).dataset['act'];
+      const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset['act'];
       if (act === 'quit') this.quitSession();
       if (act === 'demo-straight') this.demoThrow(0);
       if (act === 'demo-hook') this.demoThrow(settings.hand === 'right' ? 12 : -12);

@@ -237,3 +237,28 @@ describe('FrameMachine — 리셋', () => {
     expect(m.phase).toBe('aiming');
   });
 });
+
+describe('FrameMachine — 짧은 경기', () => {
+  it('3프레임 경기는 3프레임을 끝내면 종료된다', () => {
+    const m = new FrameMachine(3);
+    expect(m.totalFrames).toBe(3);
+    for (let i = 0; i < 6; i++) {
+      m.settleWithCount(0);
+    }
+    expect(m.isGameOver).toBe(true);
+    expect(m.phase).toBe('gameOver');
+  });
+
+  it('reset 후에도 프레임 수를 유지한다', () => {
+    const m = new FrameMachine(3);
+    m.settleWithCount(10);
+    m.reset();
+    expect(m.totalFrames).toBe(3);
+    expect(m.currentFrame).toBe(1);
+    expect(m.isGameOver).toBe(false);
+  });
+
+  it('인자가 없으면 10프레임이다', () => {
+    expect(new FrameMachine().totalFrames).toBe(10);
+  });
+});

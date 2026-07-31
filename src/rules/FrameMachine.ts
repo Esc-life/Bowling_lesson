@@ -9,7 +9,7 @@
  * 때만 10개를 새로 세운다.
  */
 
-import { Scorecard, PIN_COUNT } from './Scorecard';
+import { Scorecard, PIN_COUNT, TOTAL_FRAMES } from './Scorecard';
 import { ALL_PINS, isSplit, type PinNumber } from './pinLayout';
 
 export type GamePhase =
@@ -46,14 +46,19 @@ export class FrameMachine {
   private _phase: GamePhase;
   private _lastResult: ThrowResult | null = null;
 
-  constructor() {
-    this.card = new Scorecard();
+  constructor(private readonly frames: number = TOTAL_FRAMES) {
+    this.card = new Scorecard([], frames);
     this._standing = [...ALL_PINS];
     this._phase = 'aiming';
   }
 
   get scorecard(): Scorecard {
     return this.card;
+  }
+
+  /** 이 경기의 총 프레임 수 */
+  get totalFrames(): number {
+    return this.frames;
   }
 
   get phase(): GamePhase {
@@ -181,7 +186,7 @@ export class FrameMachine {
 
   /** 처음부터 다시 */
   reset(): void {
-    this.card = new Scorecard();
+    this.card = new Scorecard([], this.frames);
     this._standing = [...ALL_PINS];
     this._phase = 'aiming';
     this._lastResult = null;

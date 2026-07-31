@@ -9,7 +9,7 @@
  * 미러링되지만 글은 미러링되지 않기 때문이다. 번호로만 부른다.
  */
 
-import { ALL_PINS, type PinNumber } from '../rules/pinLayout';
+import { ALL_PINS, pinRow, type PinNumber } from '../rules/pinLayout';
 
 export type PracticeChoice =
   | { kind: 'game' }
@@ -68,18 +68,28 @@ export class PracticeSetup {
   }
 
   private rackHtml(): string {
-    const pins = ALL_PINS.map((n) => {
+    const pinBtn = (n: PinNumber): string => {
       const on = this.rack.has(n);
       return `<button type="button" class="pin-toggle${on ? ' is-on' : ''}"
                 data-pin="${n}" aria-pressed="${on}">${n}</button>`;
-    }).join('');
+    };
+
+    // pinRow()는 0(헤드핀)~3(뒷줄)이다. A2에서 배운 것과 같은 모양이 되도록
+    // 뒷줄(7-8-9-10)을 위에, 헤드핀(1)을 맨 아래에 둔다 — pinLayout.ts 상단의
+    // ASCII 그림과 같은 순서.
+    const byRow: PinNumber[][] = [[], [], [], []];
+    for (const n of ALL_PINS) byRow[pinRow(n)]!.push(n);
+    const pinRows = [...byRow]
+      .reverse()
+      .map((row) => `<div class="pin-row">${row.map(pinBtn).join('')}</div>`)
+      .join('');
 
     const empty = this.rack.size === 0;
     return `
       <div class="panel">
         <h1>어떤 핀을 세울까요?</h1>
         <p class="lead">번호를 눌러 켜고 끌 수 있어요. 던질 때마다 이 모양으로 다시 세워져요.</p>
-        <div class="pin-grid">${pins}</div>
+        <div class="pin-triangle">${pinRows}</div>
         <div class="row-buttons">
           <button type="button" class="text-btn" data-preset="all">전부 세우기</button>
           <button type="button" class="text-btn" data-preset="none">전부 치우기</button>

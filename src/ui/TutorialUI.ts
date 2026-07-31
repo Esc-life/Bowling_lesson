@@ -14,7 +14,7 @@
 import type { Game } from '../core/Game';
 import { players } from '../players/PlayerStore';
 import type { ThrowResult } from '../rules/FrameMachine';
-import { soloMatch } from '../rules/MatchMachine';
+import { soloMatch, type MatchMachine } from '../rules/MatchMachine';
 import type { Handedness } from '../rules/pinLayout';
 import { settings } from '../settings';
 import { DrillRunner } from '../tutorial/DrillRunner';
@@ -63,6 +63,15 @@ export class TutorialUI {
 
   private currentLessonId: string | null = null;
   private session: DrillSession | ObserveSession | null = null;
+  /**
+   * 드릴/관찰을 시작하기 직전에 진행 중이던 솔로 10프레임 경기.
+   *
+   * 홈에서 레슨으로 들어와 드릴을 시작하면 beginOwnMatch()가 매치를 통째로
+   * 갈아 끼운다 — 그 전에 학생이 치던 경기(홈의 "돌아가기" 버튼이 가리키는
+   * 바로 그 경기)가 여기 저장돼 있지 않으면 조용히 사라진다. 세션이 끝나면
+   * 이걸 되돌린다.
+   */
+  private savedMatch: MatchMachine | null = null;
   private reopenTimer: number | null = null;
 
   /** 지금 배우는 사람의 손. 포켓·화살표·드릴 목표가 전부 여기에 맞춰진다 */
@@ -252,6 +261,7 @@ export class TutorialUI {
     this.showBar();
     this.hooks.onSessionChange?.({ active: true, hideScoreboard: runner.freshRackEachThrow });
 
+    this.saveMatchIfResumable();
     // setMatch → beginAiming → onReady → handleReady()가 드릴 핀을 세운다
     this.beginOwnMatch();
     this.updateBar(null);
@@ -268,6 +278,7 @@ export class TutorialUI {
     this.menu.hide();
     this.showBar();
     this.hooks.onSessionChange?.({ active: true, hideScoreboard: false });
+    this.saveMatchIfResumable();
     this.beginOwnMatch();
     this.updateBar(null);
   }
@@ -284,6 +295,31 @@ export class TutorialUI {
    */
   private beginOwnMatch(): void {
     this.game.setMatch(soloMatch(players.current?.name ?? '나', 10, this.hand));
+  }
+
+  /**
+   * 드릴/관찰을 시작하기 직전의 매치를 봐 두고, 되돌릴 가치가 있으면 저장한다.
+   *
+   * 되돌릴 가치 = 혼자 치는 경기(대전 아님) + 적어도 한 번은 던졌음
+   * (lastResult) + 아직 안 끝남. 갓 만든 빈 매치나 대전은 저장하지 않는다 —
+   * 대전은 main.ts의 openHome()이 홈으로 나가는 순간 이미 끝내므로 레슨
+   * 화면까지 들고 올 일이 없다.
+   */
+  private saveMatchIfResumable(): void {
+    const m = this.game.match;
+    if (m.isMultiplayer) return;
+    const fm = m.activeMachine;
+    if (fm.lastResult !== null && !fm.isGameOver) this.savedMatch = m;
+  }
+
+  /** 저장해 둔 경기가 있으면 되돌리고, 없으면 늘 하던 대로 새로 만든다 */
+  private restoreOrBeginOwnMatch(): void {
+    if (this.savedMatch !== null) {
+      this.game.setMatch(this.savedMatch);
+      this.savedMatch = null;
+    } else {
+      this.beginOwnMatch();
+    }
   }
 
   /** 조준 상태가 될 때마다 (Game.onReady) — 드릴 핀을 다시 세운다 */
@@ -374,9 +410,10 @@ export class TutorialUI {
     this.session = null;
     this.bar.hidden = true;
     this.hooks.onSessionChange?.({ active: false, hideScoreboard: false });
-    // 드릴이 남겨 둔 반쪽 랙을 치우고 다시 10개를 세운다. 여기서도 자기
-    // 매치를 쓴다 — 손이 어긋나는 경로를 하나도 남기지 않는다.
-    this.beginOwnMatch();
+    // 드릴이 남겨 둔 반쪽 랙을 치운다. 드릴 전에 진행 중이던 경기를 저장해
+    // 뒀다면 그걸 되돌리고, 없었으면 늘 하던 대로 자기 매치를 새로 만든다 —
+    // 어느 쪽이든 손이 어긋나는 경로는 남기지 않는다.
+    this.restoreOrBeginOwnMatch();
 
     const lessonId = s?.lessonId ?? this.currentLessonId;
     const found = lessonId === null ? null : findLesson(lessonId);
@@ -404,7 +441,7 @@ export class TutorialUI {
     this.session = null;
     this.bar.hidden = true;
     this.hooks.onSessionChange?.({ active: false, hideScoreboard: false });
-    this.beginOwnMatch();
+    this.restoreOrBeginOwnMatch();
   }
 
   private demoThrow(spin: number): void {

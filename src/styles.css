@@ -1572,10 +1572,16 @@ button:disabled {
 .play-name { font-weight: 700; font-size: 1.05rem; }
 .play-desc { font-size: 0.8rem; opacity: 0.75; }
 
-/* 핀 고르기 — 실제 배치와 같은 삼각형 */
-.pin-grid {
-  display: grid; grid-template-columns: repeat(4, 2.4rem); gap: 0.35rem;
-  justify-content: center; margin: 0.8rem 0;
+/* 핀 고르기 — 실제 볼링 핀 삼각형과 같은 모양.
+   전에는 4칸씩 끊긴 격자라 A2에서 배운 배치와 달랐다(실기에서 확인).
+   행마다 독립적으로 가운데 정렬하면(justify-content: center) 핀 개수가
+   1·2·3·4로 늘어나는 것만으로 저절로 삼각형이 된다 — 열 계산이 필요 없다. */
+.pin-triangle {
+  display: flex; flex-direction: column; align-items: center; gap: 0.35rem;
+  margin: 0.8rem 0;
+}
+.pin-row {
+  display: flex; gap: 0.35rem; justify-content: center;
 }
 /* 켠 핀(세울 핀)은 초록으로 확 켜지고, 끈 핀은 크림색 패널 위에서 눈에 띄게
    흐려진다. 예전에는 켠 핀 #f2f2f2와 끈 핀의 흰색 8% 틴트가 둘 다 종이색

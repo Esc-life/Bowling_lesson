@@ -17,7 +17,6 @@
  * 애먼 학생의 진도가 링크 한 번에 바뀌기 때문이다.
  */
 
-import { Game } from './core/Game';
 import { players } from './players/PlayerStore';
 import { PracticeSession } from './practice/PracticeSession';
 import { MatchMachine, soloMatch, type MatchPlayer, type MatchThrowResult } from './rules/MatchMachine';
@@ -59,6 +58,11 @@ async function main(): Promise<void> {
   const resolved = playerParam === null ? null : players.findByName(playerParam);
   if (resolved !== null) players.select(resolved.id);
 
+  // Three.js·Rapier(WASM)를 별도 청크로 분리한다. 정적 import면 번들 하나가
+  // 2.8MB(gzip 1MB)로 묶여, 교실 와이파이에서는 플레이어 고르기 화면조차
+  // 그 전부를 내려받아야 뜬다. 동적 import로 쪼개면 이 청크는 필요한 시점에
+  // 따로 내려받으므로 Vite 빌드 경고("chunks larger than 500kB")도 해소된다.
+  const { Game } = await import('./core/Game');
   const game = await Game.create(stage);
 
   // ---- UI 구성 ----

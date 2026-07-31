@@ -17,3 +17,7 @@ Thumbs.db
 # logs
 *.log
 npm-debug.log*
+
+# claude code 작업 공간 (워크트리, 진행 기록)
+.claude/worktrees/
+.superpowers/

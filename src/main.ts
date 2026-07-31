@@ -257,17 +257,22 @@ async function main(): Promise<void> {
         return;
       }
 
-      // 결과와 다음 차례를 한 문구로 합쳐 한 번만 띄운다. 따로 두 번 띄우면
-      // 뒤엣것이 화면에 그려지기도 전에 앞엣것을 덮어써, 다인전에서는
-      // "스트라이크!"가 아예 보이지 않는다.
+      // 배너는 한 번만 띄운다. 따로 두 번 띄우면 뒤엣것이 화면에 그려지기도
+      // 전에 앞엣것을 덮어써, 다인전에서는 "스트라이크!"가 아예 보이지 않는다.
       const turnNote =
         result.turnChanged && game.match.isMultiplayer ? `${game.match.active.name} 차례` : null;
 
-      if (result.message !== null && turnNote !== null) {
+      // 차례 안내와 나란히 둘 수 있는 것은 축하뿐이다. 나머지 문구("다시 해
+      // 볼까요?" 같은 것)는 방금 던진 사람에게 하는 조언이라, 차례가 넘어간
+      // 뒤에 붙이면 누구한테 하는 말인지 어긋난다. 그때는 차례만 알린다.
+      // 문자열이 아니라 isStrike/isSpare로 가른다 — 문구가 바뀌어도 안 깨진다.
+      const isPraise = result.isStrike || result.isSpare;
+
+      if (turnNote === null) {
+        if (result.message !== null) hud.showBanner(result.message);
+      } else if (isPraise && result.message !== null) {
         hud.showBanner(`${result.message} 이제 ${turnNote}`, 2600);
-      } else if (result.message !== null) {
-        hud.showBanner(result.message);
-      } else if (turnNote !== null) {
+      } else {
         hud.showBanner(turnNote);
       }
     },

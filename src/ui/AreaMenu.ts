@@ -21,6 +21,9 @@ import type { TutorialFlow } from '../tutorial/TutorialFlow';
 import type { AreaId } from '../tutorial/types';
 import { escapeHtml } from '../util/html';
 
+/** 홈을 나가기 전까지 치던 10프레임 경기가 있으면 여기 담겨 온다 */
+export type ResumableGame = { frame: number; total: number };
+
 export type AreaMenuCallbacks = {
   onOpenLesson: (lessonId: string) => void;
   onReport: () => void;
@@ -32,6 +35,8 @@ export type AreaMenuCallbacks = {
   onMatch: () => void;
   /** 플레이어 바꾸기 */
   onSwitchPlayer: () => void;
+  /** 치던 10프레임 경기로 그대로 돌아가기 (resumeGame이 있을 때만 불린다) */
+  onResumeGame: () => void;
 };
 
 export class AreaMenu {
@@ -92,6 +97,9 @@ export class AreaMenu {
         case 'reset-yes':
           this.callbacks.onReset();
           break;
+        case 'resume-game':
+          this.callbacks.onResumeGame();
+          break;
         default:
           break;
       }
@@ -109,13 +117,19 @@ export class AreaMenu {
   /**
    * @param focusArea 딥링크(?area=D)로 열 때 강조할 영역
    * @param notice 화면 맨 위에 한 줄 알림 (예: 대전을 그만뒀다는 안내)
+   * @param resumeGame 나가기 전까지 치던 10프레임 경기 (있으면 돌아가기 버튼을 보여준다)
    */
-  show(flow: TutorialFlow, focusArea?: AreaId, notice?: string): void {
+  show(flow: TutorialFlow, focusArea?: AreaId, notice?: string, resumeGame?: ResumableGame | null): void {
     this.element.hidden = false;
-    this.render(flow, focusArea, notice);
+    this.render(flow, focusArea, notice, resumeGame ?? null);
   }
 
-  private render(flow: TutorialFlow, focusArea?: AreaId, notice?: string): void {
+  private render(
+    flow: TutorialFlow,
+    focusArea?: AreaId,
+    notice?: string,
+    resumeGame: ResumableGame | null = null,
+  ): void {
     const doneCount = flow.allAreaProgress().reduce((n, p) => n + p.completed, 0);
     const totalCount = flow.allAreaProgress().reduce((n, p) => n + p.total, 0);
     const nextLesson = flow.firstIncomplete();
@@ -190,6 +204,13 @@ export class AreaMenu {
         <div class="tut-crumb">볼링 배우기</div>
       </div>
       ${notice === undefined ? '' : `<div class="menu-notice">${escapeHtml(notice)}</div>`}
+      ${
+        resumeGame === null
+          ? ''
+          : `<button type="button" class="big-btn big-btn--resume" data-act="resume-game">
+              🎳 치던 경기로 돌아가기 (${resumeGame.frame}프레임째 · ${resumeGame.total}점)
+            </button>`
+      }
       <div class="menu-overall">
         <div class="menu-overall-bar"><div style="width:${Math.round(flow.overallRatio * 100)}%"></div></div>
         <span>${doneCount} / ${totalCount} 레슨</span>

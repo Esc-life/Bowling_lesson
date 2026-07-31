@@ -605,6 +605,9 @@ button:disabled {
   justify-content: center;
 }
 
+/* 안 고른 손은 눈에 띄지 않게 낮춰 둔다 — 고른 손(.is-on)만 파랗게 켜지므로
+   "크림색 외곽선 하나"보다 훨씬 잘 구별된다(실기에서 두 버튼이 거의 같아
+   보인다고 확인된 문제). */
 .hand-choice {
   display: flex;
   flex-direction: column;
@@ -614,12 +617,25 @@ button:disabled {
   min-height: 0;
   font-size: 18px;
   color: var(--ink-hud);
-  background: var(--ball-blue);
-  border-color: var(--ball-blue-deep);
-  box-shadow: 0 4px 0 var(--ball-blue-deep);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+  opacity: 0.7;
 }
 
 .hand-choice:hover {
+  background: rgba(255, 255, 255, 0.14);
+  opacity: 0.85;
+}
+
+.hand-choice.is-on {
+  background: var(--ball-blue);
+  border-color: var(--ball-blue-deep);
+  box-shadow: 0 4px 0 var(--ball-blue-deep);
+  opacity: 1;
+}
+
+.hand-choice.is-on:hover {
   background: #4574d9;
 }
 
@@ -789,6 +805,18 @@ button:disabled {
 
 .big-btn--accent:hover {
   background: #e2483f;
+}
+
+.big-btn--resume {
+  color: #fff;
+  background: var(--ball-blue);
+  border-color: var(--ball-blue-deep);
+  box-shadow: 0 4px 0 var(--ball-blue-deep);
+  margin-bottom: 10px;
+}
+
+.big-btn--resume:hover {
+  background: #4a76d9;
 }
 
 .tut-done {
@@ -1260,6 +1288,19 @@ button:disabled {
     display: none;
   }
 
+  /* '대전 그만두기'만은 좁은 화면에서도 글자를 남긴다. 🚪 아이콘 하나만으로는
+     초등학생에게 "판을 끝낸다"는 뜻이 읽히지 않는다(빨간 배경만이 유일한
+     단서였다 — 실기에서 확인). 오른쪽 끝에 고정돼 있어 글자가 늘어나도
+     왼쪽으로만 넓어지므로 restart-btn과 겹치지 않는다. */
+  .learn-btn.is-quit .btn-label {
+    display: inline;
+  }
+
+  .learn-btn.is-quit {
+    min-width: auto;
+    font-size: 14px;
+  }
+
   .scoreboard {
     top: 52px;
     left: max(8px, env(safe-area-inset-left));
@@ -1421,7 +1462,16 @@ button:disabled {
   }
 }
 
-/* 대전 점수판 — 사람마다 한 줄 */
+/* 대전 점수판 — 사람마다 한 줄.
+   .scoreboard 기본값(display:flex, row 방향)을 세로로 뒤집는다. 안 뒤집으면
+   사람 수만큼 옆으로 늘어나 4명이면 좁은 화면에서 3·4번째 사람 줄이
+   화면 밖으로 밀려난다(실기에서 확인). 세로로 쌓으면 화면 폭과 무관하게
+   모든 사람 줄이 항상 보인다. */
+.scoreboard--match {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .scoreboard--match .match-row {
   display: grid;
   grid-template-columns: 4.5rem 1fr;
@@ -1527,12 +1577,22 @@ button:disabled {
   display: grid; grid-template-columns: repeat(4, 2.4rem); gap: 0.35rem;
   justify-content: center; margin: 0.8rem 0;
 }
+/* 켠 핀(세울 핀)은 초록으로 확 켜지고, 끈 핀은 크림색 패널 위에서 눈에 띄게
+   흐려진다. 예전에는 켠 핀 #f2f2f2와 끈 핀의 흰색 8% 틴트가 둘 다 종이색
+   (--paper, #f6f1e4)에 가까워 거의 구별되지 않았다(실기에서 확인). */
 .pin-toggle {
   width: 2.4rem; height: 2.4rem; border-radius: 50%; cursor: pointer;
-  font-weight: 700; color: inherit;
-  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+  background: rgba(42, 32, 22, 0.1); border: 1px solid rgba(42, 32, 22, 0.25);
+  color: var(--ink-paper-dim);
+  opacity: 0.65;
 }
-.pin-toggle.is-on { background: #f2f2f2; color: #1a1a1a; }
+.pin-toggle.is-on {
+  background: var(--felt-green);
+  border-color: var(--felt-green-deep);
+  color: #fff;
+  opacity: 1;
+}
 
 /* 참가자 고르기 */
 .pick-row {
@@ -1550,7 +1610,6 @@ button:disabled {
   background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2);
 }
 .frame-choice.is-on { background: #f2f2f2; color: #1a1a1a; }
-.hand-choice.is-on { outline: 2px solid currentColor; }
 
 /* ---------------------------------------------------------------- 홈 — 플레이어 줄과 잠금 */
 

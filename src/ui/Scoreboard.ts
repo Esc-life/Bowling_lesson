@@ -37,6 +37,8 @@ function rollSymbol(frame: FrameView, index: number, totalFrames: number): strin
 
 export class Scoreboard {
   readonly element: HTMLElement;
+  /** renderMatch()가 매 프레임(드래그 중에도) 불리므로, 차례가 바뀔 때만 스크롤한다 */
+  private lastActivePlayerId: string | null = null;
 
   constructor(options: ScoreboardOptions = {}) {
     this.element = document.createElement('div');
@@ -54,6 +56,7 @@ export class Scoreboard {
    */
   renderMatch(match: MatchMachine): void {
     if (!match.isMultiplayer) {
+      this.lastActivePlayerId = null;
       this.element.classList.remove('scoreboard--match');
       this.render(match.activeMachine.scorecard, {
         activeFrame: match.activeMachine.currentFrame,
@@ -78,6 +81,13 @@ export class Scoreboard {
     });
 
     this.element.innerHTML = rows.join('');
+
+    // 차례가 바뀐 순간에만 스크롤한다 — 매 프레임 부르면(드래그 중에도
+    // renderMatch가 계속 불린다) 사용자가 손으로 미는 스크롤과 싸우게 된다.
+    if (match.active.id !== this.lastActivePlayerId) {
+      this.lastActivePlayerId = match.active.id;
+      this.element.querySelector('.match-row--active')?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   /** 프레임 한 줄(칸 + 합계)을 그린다. `render`와 `renderMatch`가 공유한다. */

@@ -135,6 +135,22 @@ async function main(): Promise<void> {
   }
 
   /**
+   * 지금 혼자 치는 10프레임 경기가 진행 중인가 (적어도 한 번은 던졌고, 아직 안 끝남).
+   *
+   * 홈으로 나가도 이 경기의 매치 객체는 그대로 남는다(openHome이 지우지 않는다).
+   * 문제는 돌아갈 길이 없었다는 것 — 이 값이 있으면 홈에 "돌아가기" 버튼을 보여준다.
+   */
+  function soloGameInProgress(): boolean {
+    if (practice !== null || game.match.isMultiplayer) return false;
+    return game.machine.lastResult !== null && !game.machine.isGameOver;
+  }
+
+  function resumableGame(): { frame: number; total: number } | null {
+    if (!soloGameInProgress()) return null;
+    return { frame: game.machine.currentFrame, total: game.machine.scorecard.total };
+  }
+
+  /**
    * 홈으로 — 진행 중이던 드릴·연습 세션은 여기서 끝난다.
    *
    * 대전 중에 홈으로 나가면 대전도 끝난다. 점수를 들고 있다가 되돌리는
@@ -209,6 +225,11 @@ async function main(): Promise<void> {
     onFreePractice: () => practiceSetup.show(),
     onMatch: () => matchSetup.show(),
     onSwitchPlayer: () => picker.show(),
+    onResumeGame: () => {
+      scoreboard.element.classList.remove('is-hidden');
+      refresh();
+    },
+    getResumableGame: () => resumableGame(),
   });
 
   const homeBtn = document.createElement('button');

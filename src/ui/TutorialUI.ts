@@ -22,7 +22,7 @@ import { findLesson } from '../tutorial/curriculum';
 import { Progress } from '../tutorial/Progress';
 import { TutorialFlow, type QuizScore } from '../tutorial/TutorialFlow';
 import type { AreaId, Drill, Lesson } from '../tutorial/types';
-import { AreaMenu } from './AreaMenu';
+import { AreaMenu, type ResumableGame } from './AreaMenu';
 import { ReportScreen } from './ReportScreen';
 import { TutorialPanel, type LessonContext } from './TutorialPanel';
 
@@ -35,6 +35,16 @@ export type TutorialHooks = {
   onMatch: () => void;
   /** 홈에서 플레이어 바꾸기를 골랐을 때 */
   onSwitchPlayer: () => void;
+  /** 홈에서 "치던 경기로 돌아가기"를 골랐을 때 */
+  onResumeGame: () => void;
+  /**
+   * 홈을 그릴 때마다 불러 "치던 경기로 돌아가기" 버튼을 보일지 정한다.
+   *
+   * openMenu()는 main.ts의 openHome() 말고도 레슨 패널의 ✕(onClose/onMenu)
+   * 처럼 TutorialUI 내부에서 직접 불리는 경로가 있다. 값을 한 번 받아 두면
+   * 그 경로들에서 낡은(또는 없는) 값을 쓰게 되므로, 그릴 때마다 다시 묻는다.
+   */
+  getResumableGame: () => ResumableGame | null;
 };
 
 type DrillSession = { kind: 'drill'; lessonId: string; runner: DrillRunner };
@@ -109,6 +119,10 @@ export class TutorialUI {
         this.closeAll();
         this.hooks.onSwitchPlayer();
       },
+      onResumeGame: () => {
+        this.closeAll();
+        this.hooks.onResumeGame();
+      },
     });
 
     this.report = new ReportScreen(() => {
@@ -161,7 +175,7 @@ export class TutorialUI {
   openMenu(focusArea?: AreaId, notice?: string): void {
     this.panel.hide();
     this.report.hide();
-    this.menu.show(this.flow, focusArea, notice);
+    this.menu.show(this.flow, focusArea, notice, this.hooks.getResumableGame());
   }
 
   openLesson(lessonId: string): void {

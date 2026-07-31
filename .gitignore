@@ -21,3 +21,9 @@ npm-debug.log*
 # claude code 작업 공간 (워크트리, 진행 기록)
 .claude/worktrees/
 .superpowers/
+
+# 프로젝트 전용 스킬(예: playwright-skill)의 의존성·실행 잔여 파일.
+# node_modules/는 위 규칙으로 이미 걸러지지만, 커밋 용량 실수를 막기 위해
+# 명시적으로 한 번 더 남겨 둔다.
+.claude/skills/*/node_modules/
+.temp-execution-*.js

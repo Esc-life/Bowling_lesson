@@ -250,3 +250,56 @@ describe('Scorecard — 프레임 표시 정보', () => {
     expect(card.frames[0]!.isComplete).toBe(true);
   });
 });
+
+describe('Scorecard — 짧은 경기 (프레임 수 지정)', () => {
+  it('3프레임 거터 게임은 6굴림에 끝난다', () => {
+    const card = new Scorecard(repeat(0, 6), 3);
+    expect(card.totalFrames).toBe(3);
+    expect(card.total).toBe(0);
+    expect(card.isGameOver).toBe(true);
+    expect(card.frames).toHaveLength(3);
+  });
+
+  it('3프레임 경기의 마지막 프레임에도 보너스 투구가 붙는다', () => {
+    // 1,2프레임 오픈(1+1) → 3프레임 스트라이크 → 보너스 2번
+    const card = new Scorecard([1, 1, 1, 1, 10, 10, 10], 3);
+    expect(card.isGameOver).toBe(true);
+    // 2 + 2 + (10+10+10) = 34
+    expect(card.total).toBe(34);
+    expect(card.frames[2]!.frameScore).toBe(30);
+  });
+
+  it('마지막 프레임 스트라이크 뒤에는 핀을 새로 세운다', () => {
+    const card = new Scorecard([1, 1, 1, 1, 10], 3);
+    expect(card.isGameOver).toBe(false);
+    expect(card.pinsStanding).toBe(10);
+    expect(card.currentFrame).toBe(3);
+  });
+
+  it('3프레임 퍼펙트는 5연속 스트라이크로 90점', () => {
+    const card = new Scorecard(repeat(10, 5), 3);
+    expect(card.total).toBe(90);
+    expect(card.isGameOver).toBe(true);
+  });
+
+  it('5프레임 경기도 같은 규칙으로 동작한다', () => {
+    const card = new Scorecard(repeat(10, 7), 5);
+    expect(card.total).toBe(150);
+    expect(card.isGameOver).toBe(true);
+    expect(card.frames).toHaveLength(5);
+  });
+
+  it('인자를 주지 않으면 10프레임이다 (기존 동작)', () => {
+    const card = new Scorecard();
+    expect(card.totalFrames).toBe(10);
+  });
+
+  it('fromRolls도 프레임 수를 받는다', () => {
+    const card = Scorecard.fromRolls([10, 10, 10, 10, 10], 3);
+    expect(card.total).toBe(90);
+  });
+
+  it('프레임 수가 1 미만이면 거부한다', () => {
+    expect(() => new Scorecard([], 0)).toThrow();
+  });
+});

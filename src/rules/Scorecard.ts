@@ -1,16 +1,21 @@
 /**
- * 10프레임 볼링 점수 계산.
+ * 볼링 점수 계산 (기본 10프레임).
  *
  * 순수 로직 — Three.js도 Rapier도 모른다. 굴림 배열 하나를 진실의
  * 원천으로 두고 프레임 점수를 파생 계산한다. 상태를 프레임별로 쪼개
  * 저장하지 않는 이유는, 스트라이크·스페어 보너스가 "뒤의 굴림"에
  * 의존하기 때문이다. 배열 하나면 look-ahead가 자연스럽다.
  *
+ * 프레임 수를 인자로 받는 이유: 대전에서 3·5프레임 짧은 경기를 고를 수
+ * 있어야 한다. 마지막 프레임의 보너스 투구 규칙은 프레임 수와 무관하게
+ * 그대로 적용되므로, 짧은 경기도 마지막 칸까지 점수가 확정된다.
+ *
  * 이 클래스는 튜토리얼 퀴즈의 정답 계산기로도 쓰인다. 그래서 퀴즈
  * 정답을 손으로 적어 둘 필요가 없고, 규칙 구현과 교육 내용이 어긋날
  * 수 없다.
  */
 
+/** 정식 경기의 프레임 수 — 지정하지 않았을 때의 기본값 */
 export const TOTAL_FRAMES = 10;
 export const PIN_COUNT = 10;
 
@@ -32,14 +37,23 @@ type Segment = { start: number; length: number };
 
 export class Scorecard {
   private readonly _rolls: number[] = [];
+  private readonly total_: number;
 
-  constructor(rolls: readonly number[] = []) {
+  constructor(rolls: readonly number[] = [], totalFrames: number = TOTAL_FRAMES) {
+    if (!Number.isInteger(totalFrames) || totalFrames < 1) {
+      throw new Error(`프레임 수는 1 이상의 정수여야 합니다: ${totalFrames}`);
+    }
+    this.total_ = totalFrames;
     for (const r of rolls) this.roll(r);
   }
 
   /** 굴림 배열로부터 채점표를 만든다 (퀴즈 문항 생성용) */
-  static fromRolls(rolls: readonly number[]): Scorecard {
-    return new Scorecard(rolls);
+  static fromRolls(rolls: readonly number[], totalFrames: number = TOTAL_FRAMES): Scorecard {
+    return new Scorecard(rolls, totalFrames);
+  }
+
+  get totalFrames(): number {
+    return this.total_;
   }
 
   get rolls(): readonly number[] {
@@ -77,7 +91,7 @@ export class Scorecard {
     const segs: Segment[] = [];
     let i = 0;
 
-    for (let f = 0; f < TOTAL_FRAMES - 1; f++) {
+    for (let f = 0; f < this.total_ - 1; f++) {
       if (i >= this._rolls.length) {
         segs.push({ start: i, length: 0 });
         continue;
@@ -95,13 +109,13 @@ export class Scorecard {
     return segs;
   }
 
-  private tenthRolls(): number[] {
+  private lastFrameRolls(): number[] {
     const segs = this.segments();
-    return this._rolls.slice(segs[TOTAL_FRAMES - 1]!.start);
+    return this._rolls.slice(segs[this.total_ - 1]!.start);
   }
 
-  private isTenthComplete(): boolean {
-    const t = this.tenthRolls();
+  private isLastFrameComplete(): boolean {
+    const t = this.lastFrameRolls();
     if (t.length >= 3) return true;
     // 2구로 끝나는 것은 스트라이크도 스페어도 아닐 때만
     if (t.length === 2) return t[0]! + t[1]! < PIN_COUNT;
@@ -110,7 +124,7 @@ export class Scorecard {
 
   private isFrameComplete(f: number, segs: Segment[]): boolean {
     const seg = segs[f]!;
-    if (f === TOTAL_FRAMES - 1) return this.isTenthComplete();
+    if (f === this.total_ - 1) return this.isLastFrameComplete();
     if (seg.length === 1) return this._rolls[seg.start] === PIN_COUNT;
     return seg.length === 2;
   }
@@ -128,9 +142,9 @@ export class Scorecard {
     const a = r[seg.start];
     if (a === undefined) return null;
 
-    if (f === TOTAL_FRAMES - 1) {
-      if (!this.isTenthComplete()) return null;
-      return this.tenthRolls().reduce((s, v) => s + v, 0);
+    if (f === this.total_ - 1) {
+      if (!this.isLastFrameComplete()) return null;
+      return this.lastFrameRolls().reduce((s, v) => s + v, 0);
     }
 
     // 스트라이크: 10 + 다음 두 번
@@ -162,7 +176,7 @@ export class Scorecard {
     let running = 0;
     let broken = false;
 
-    for (let f = 0; f < TOTAL_FRAMES; f++) {
+    for (let f = 0; f < this.total_; f++) {
       const seg = segs[f]!;
       const rolls = this._rolls.slice(seg.start, seg.start + seg.length);
       const frameScore = this.frameScoreAt(f, segs);
@@ -198,7 +212,7 @@ export class Scorecard {
   get total(): number {
     let running = 0;
     const segs = this.segments();
-    for (let f = 0; f < TOTAL_FRAMES; f++) {
+    for (let f = 0; f < this.total_; f++) {
       const s = this.frameScoreAt(f, segs);
       if (s === null) break;
       running += s;
@@ -213,10 +227,10 @@ export class Scorecard {
   /** 지금 던지고 있는 프레임 (1~10). 게임이 끝났으면 10 */
   get currentFrame(): number {
     const segs = this.segments();
-    for (let f = 0; f < TOTAL_FRAMES; f++) {
+    for (let f = 0; f < this.total_; f++) {
       if (!this.isFrameComplete(f, segs)) return f + 1;
     }
-    return TOTAL_FRAMES;
+    return this.total_;
   }
 
   /** 이 프레임에서 몇 번째 공인가 (1~3). 10프레임에서만 3이 나온다 */
@@ -235,7 +249,7 @@ export class Scorecard {
 
     const frame = this.currentFrame;
 
-    if (frame < TOTAL_FRAMES) {
+    if (frame < this.total_) {
       const segs = this.segments();
       const seg = segs[frame - 1]!;
       if (seg.length === 0) return PIN_COUNT;
@@ -243,7 +257,7 @@ export class Scorecard {
     }
 
     // 10프레임: 스트라이크나 스페어를 치면 핀을 새로 세운다
-    const t = this.tenthRolls();
+    const t = this.lastFrameRolls();
     if (t.length === 0) return PIN_COUNT;
     if (t.length === 1) {
       return t[0] === PIN_COUNT ? PIN_COUNT : PIN_COUNT - t[0]!;
@@ -257,10 +271,10 @@ export class Scorecard {
 
   get isGameOver(): boolean {
     const segs = this.segments();
-    for (let f = 0; f < TOTAL_FRAMES - 1; f++) {
+    for (let f = 0; f < this.total_ - 1; f++) {
       if (!this.isFrameComplete(f, segs)) return false;
     }
-    return this.isTenthComplete();
+    return this.isLastFrameComplete();
   }
 
   /** 마지막 굴림이 스트라이크였는가 (연출용) */

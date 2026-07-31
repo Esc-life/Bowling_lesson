@@ -1,0 +1,23 @@
+name: CI
+
+# main 배포 전 검증은 deploy.yml이 이미 한다(push to main → test → build → deploy).
+# 이 워크플로는 그 앞 단계 — 기능 브랜치에 커밋하거나 PR을 여는 즉시 같은 검증을
+# 돌려서, main에 반영하기 전에 회귀를 잡는다.
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

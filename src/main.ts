@@ -48,11 +48,11 @@ async function main(): Promise<void> {
 
   // ?player=이름 으로 선택 화면을 건너뛴다 (수업 시연용).
   // 게임보다 먼저 골라야 튜토리얼이 그 사람의 진도로 열린다.
+  // 이름을 못 찾으면 resolved가 null이고, 그때는 선택 화면을 띄운다 —
+  // 오타 하나로 엉뚱한 학생의 진도에 기록되면 안 된다.
   const playerParam = params.get('player');
-  if (playerParam !== null) {
-    const found = players.findByName(playerParam);
-    if (found !== null) players.select(found.id);
-  }
+  const resolved = playerParam === null ? null : players.findByName(playerParam);
+  if (resolved !== null) players.select(resolved.id);
 
   const game = await Game.create(stage);
 
@@ -124,9 +124,18 @@ async function main(): Promise<void> {
     refresh();
   }
 
-  /** 홈으로 — 연습 세션은 여기서 끝난다 */
+  /** 홈으로 — 진행 중이던 드릴·연습 세션은 여기서 끝난다 */
   function openHome(): void {
-    practice = null;
+    // 드릴 세션을 먼저 접는다. openMenu()만으로는 세션이 살아 있어
+    // 점수판을 되돌리는 onSessionChange가 발화하지 않는다.
+    tutorial.closeAll();
+
+    // 연습 투구는 물리 랙만 3개짜리로 바꿔 둔 상태다. 매치를 새로 만들어
+    // 되돌리지 않으면, 다음 경기에서 세우지도 않은 핀 7개가 "쓰러졌다"고
+    // 세어져 첫 프레임이 스트라이크로 기록된다.
+    // 진행 중인 경기·대전까지 날리지 않도록 연습 중일 때만 되돌린다.
+    if (practice !== null) resetSolo();
+
     scoreboard.element.classList.remove('is-hidden');
     tutorial.openMenu();
   }
@@ -236,17 +245,30 @@ async function main(): Promise<void> {
         return;
       }
 
-      if (!suppressBanner && result.message !== null) hud.showBanner(result.message);
       refresh();
+      if (suppressBanner) return;
 
-      if (!suppressBanner && result.matchOver) {
+      if (result.matchOver) {
         const rank = game.match.ranking;
         const text = game.match.isMultiplayer
           ? `${rank[0]!.player.name} 승리! ${rank[0]!.total}점`
           : `끝! ${rank[0]!.total}점`;
         hud.showBanner(text, 4000);
-      } else if (!suppressBanner && result.turnChanged && game.match.isMultiplayer) {
-        hud.showBanner(`${game.match.active.name} 차례`);
+        return;
+      }
+
+      // 결과와 다음 차례를 한 문구로 합쳐 한 번만 띄운다. 따로 두 번 띄우면
+      // 뒤엣것이 화면에 그려지기도 전에 앞엣것을 덮어써, 다인전에서는
+      // "스트라이크!"가 아예 보이지 않는다.
+      const turnNote =
+        result.turnChanged && game.match.isMultiplayer ? `${game.match.active.name} 차례` : null;
+
+      if (result.message !== null && turnNote !== null) {
+        hud.showBanner(`${result.message} 이제 ${turnNote}`, 2600);
+      } else if (result.message !== null) {
+        hud.showBanner(result.message);
+      } else if (turnNote !== null) {
+        hud.showBanner(turnNote);
       }
     },
   });
@@ -287,7 +309,7 @@ async function main(): Promise<void> {
   refresh();
   loading.classList.add('is-hidden');
 
-  if (players.current === null || playerParam === null) {
+  if (resolved === null) {
     picker.show();
   } else {
     onPlayerReady();

@@ -13,7 +13,7 @@
  */
 
 import type { Handedness } from '../rules/pinLayout';
-import { emptyProgress, type ProgressState } from '../tutorial/TutorialFlow';
+import { emptyProgress, type ProgressState, type QuizScore } from '../tutorial/TutorialFlow';
 import type { Player, StorageLike } from './types';
 
 export type { Player, StorageLike } from './types';
@@ -61,15 +61,56 @@ function browserStorage(): StorageLike {
   }
 }
 
-function isProgressState(v: unknown): v is ProgressState {
-  if (typeof v !== 'object' || v === null) return false;
+/**
+ * 저장된 진행률을 필드별로 되살린다.
+ *
+ * 한 필드가 깨졌다고 진도를 통째로 버리면 안 된다. 예전에는 모양이
+ * 조금이라도 어긋나면 emptyProgress()로 갈아 끼웠는데, quizScores 하나가
+ * null이 된 것만으로 3/18이던 학생이 0/18로 돌아갔다. 부팅이 멈추는 것보다
+ * 조용히 진도가 사라지는 쪽이 더 나쁘다 — 다 배운 학생은 자유 연습과
+ * 대전이 다시 잠기고, 화면 어디에도 되돌릴 길이 없다.
+ *
+ * 그래도 quizScores의 null은 반드시 걸러야 한다. typeof null이 'object'라
+ * 그냥 넘기면 TutorialFlow의 Object.entries(null)에서 터진다.
+ */
+function sanitizeProgress(v: unknown): ProgressState {
+  if (typeof v !== 'object' || v === null) return emptyProgress();
   const o = v as Record<string, unknown>;
-  // quizScores의 null을 반드시 걸러야 한다. typeof null이 'object'라
-  // 그냥 통과시키면 TutorialFlow의 Object.entries(null)에서 터지고,
-  // 그건 앱이 아예 뜨지 않는다는 뜻이다.
-  const scores = o['quizScores'];
-  if (typeof scores !== 'object' || scores === null) return false;
-  return Array.isArray(o['completedLessons']);
+
+  const rawCompleted = o['completedLessons'];
+  const completedLessons = Array.isArray(rawCompleted)
+    ? rawCompleted.filter((x): x is string => typeof x === 'string')
+    : [];
+
+  const quizScores: Record<string, QuizScore> = {};
+  const rawScores = o['quizScores'];
+  if (typeof rawScores === 'object' && rawScores !== null) {
+    for (const [id, value] of Object.entries(rawScores as Record<string, unknown>)) {
+      if (typeof value !== 'object' || value === null) continue;
+      const s = value as Record<string, unknown>;
+      const correct = s['correct'];
+      const total = s['total'];
+      if (typeof correct === 'number' && typeof total === 'number' && total > 0) {
+        quizScores[id] = { correct, total };
+      }
+    }
+  }
+
+  const current = o['currentLessonId'];
+  return {
+    completedLessons,
+    quizScores,
+    currentLessonId: typeof current === 'string' ? current : null,
+  };
+}
+
+/** 물려주거나 되살릴 값이 하나라도 있는가 */
+function hasAnyProgress(p: ProgressState): boolean {
+  return (
+    p.completedLessons.length > 0 ||
+    Object.keys(p.quizScores).length > 0 ||
+    p.currentLessonId !== null
+  );
 }
 
 function sanitizePlayer(v: unknown): Player | null {
@@ -85,7 +126,7 @@ function sanitizePlayer(v: unknown): Player | null {
     id,
     name: name.trim(),
     handedness: hand,
-    progress: isProgressState(o['progress']) ? (o['progress'] as ProgressState) : emptyProgress(),
+    progress: sanitizeProgress(o['progress']),
     createdAt: typeof o['createdAt'] === 'number' ? o['createdAt'] : 0,
   };
 }
@@ -222,13 +263,17 @@ export class PlayerStore {
     const raw = this.storage.getItem(LEGACY_PROGRESS_KEY);
     if (raw === null) return null;
 
-    let progress: unknown;
+    let parsed: unknown;
     try {
-      progress = JSON.parse(raw);
+      parsed = JSON.parse(raw);
     } catch {
       return null;
     }
-    if (!isProgressState(progress)) return null;
+    // 옛 데이터도 필드별로 되살린다. 여기서 통째로 버리면 구버전을 쓰던
+    // 학생이 이관하는 순간 배운 것을 전부 잃는다.
+    const progress = sanitizeProgress(parsed);
+    // 물려줄 것이 하나도 없으면 이관 안내("이어서 쓸게요")를 띄우지 않는다
+    if (!hasAnyProgress(progress)) return null;
 
     let handedness: Handedness | null = null;
     const settingsRaw = this.storage.getItem(LEGACY_SETTINGS_KEY);
@@ -242,7 +287,7 @@ export class PlayerStore {
       }
     }
 
-    return { progress: progress as ProgressState, handedness };
+    return { progress, handedness };
   }
 
   private persist(): void {

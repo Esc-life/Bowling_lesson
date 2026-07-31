@@ -205,9 +205,10 @@ describe('PlayerStore — 깨진 데이터', () => {
     expect(store.players.map((p) => p.name)).toEqual(['가']);
   });
 
-  it('quizScores가 null이면 빈 진행률로 되돌린다', () => {
-    // typeof null === 'object'라 검사를 그냥 통과하면, 나중에
-    // Object.entries(null)에서 터져 앱이 아예 뜨지 않는다.
+  it('quizScores가 null이어도 배운 레슨은 살아남는다', () => {
+    // typeof null === 'object'라 그냥 통과시키면 Object.entries(null)에서
+    // 터져 앱이 아예 안 뜬다. 그렇다고 진행률을 통째로 버리면 배운 것이
+    // 조용히 사라진다 — 깨진 필드만 비우고 나머지는 지킨다.
     const storage = memoryStorage({
       'bowling3d.players.v1': JSON.stringify({
         players: [
@@ -215,7 +216,7 @@ describe('PlayerStore — 깨진 데이터', () => {
             id: 'a',
             name: '가',
             handedness: 'right',
-            progress: { completedLessons: ['A1'], quizScores: null, currentLessonId: null },
+            progress: { completedLessons: ['A1'], quizScores: null, currentLessonId: 'A2' },
             createdAt: 1,
           },
         ],
@@ -224,16 +225,76 @@ describe('PlayerStore — 깨진 데이터', () => {
     });
     const store = new PlayerStore(storage);
     expect(store.current!.progress.quizScores).toEqual({});
-    expect(store.current!.progress.completedLessons).toEqual([]);
+    expect(store.current!.progress.completedLessons).toEqual(['A1']);
+    expect(store.current!.progress.currentLessonId).toBe('A2');
   });
 
-  it('옛 진행률의 quizScores가 null이면 이관하지 않는다', () => {
+  it('completedLessons가 배열이 아니어도 퀴즈 점수는 살아남는다', () => {
+    const storage = memoryStorage({
+      'bowling3d.players.v1': JSON.stringify({
+        players: [
+          {
+            id: 'a',
+            name: '가',
+            handedness: 'right',
+            progress: {
+              completedLessons: '망가짐',
+              quizScores: { A2: { correct: 2, total: 3 } },
+              currentLessonId: null,
+            },
+            createdAt: 1,
+          },
+        ],
+        lastPlayerId: 'a',
+      }),
+    });
+    const store = new PlayerStore(storage);
+    expect(store.current!.progress.completedLessons).toEqual([]);
+    expect(store.current!.progress.quizScores['A2']).toEqual({ correct: 2, total: 3 });
+  });
+
+  it('각 필드에 쓰레기가 섞여도 멀쩡한 항목만 남는다', () => {
+    const storage = memoryStorage({
+      'bowling3d.players.v1': JSON.stringify({
+        players: [
+          {
+            id: 'a',
+            name: '가',
+            handedness: 'right',
+            progress: {
+              completedLessons: ['A1', 42, null, 'A2'],
+              quizScores: { A1: { correct: 1, total: 2 }, B1: null, C1: { correct: 1 } },
+              currentLessonId: 7,
+            },
+            createdAt: 1,
+          },
+        ],
+        lastPlayerId: 'a',
+      }),
+    });
+    const store = new PlayerStore(storage);
+    expect(store.current!.progress.completedLessons).toEqual(['A1', 'A2']);
+    expect(Object.keys(store.current!.progress.quizScores)).toEqual(['A1']);
+    expect(store.current!.progress.currentLessonId).toBeNull();
+  });
+
+  it('옛 진행률의 quizScores가 null이어도 배운 레슨은 이관한다', () => {
     const store = new PlayerStore(
       memoryStorage({
         'bowling3d.progress.v1': JSON.stringify({
           completedLessons: ['A1'],
           quizScores: null,
         }),
+      }),
+    );
+    expect(store.pendingMigration).toBe(true);
+    expect(store.create('민준', 'right').progress.completedLessons).toEqual(['A1']);
+  });
+
+  it('옛 진행률에 물려줄 것이 하나도 없으면 이관 안내를 띄우지 않는다', () => {
+    const store = new PlayerStore(
+      memoryStorage({
+        'bowling3d.progress.v1': JSON.stringify({ completedLessons: [], quizScores: {} }),
       }),
     );
     expect(store.pendingMigration).toBe(false);

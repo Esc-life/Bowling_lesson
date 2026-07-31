@@ -1334,6 +1334,13 @@ button:disabled {
 
   .scoreboard .total {
     padding: 0 8px;
+    /* 390px 같은 진짜 좁은 폰 폭에서는 프레임 10칸 + 총점이 한 화면에
+       안 들어가 점수판이 옆으로 스크롤된다(overflow-x: auto). 총점을
+       오른쪽에 붙박아 두지 않으면 학생이 스크롤을 해야만 지금 몇 점인지
+       본다 — 경기 중 가장 자주 보는 숫자인데 안 보이면 안 된다. */
+    position: sticky;
+    right: 0;
+    background: var(--panel);
   }
 
   .scoreboard .total-value {

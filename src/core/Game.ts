@@ -13,7 +13,8 @@ import { BALL, DIFFICULTY, LANE, PHYSICS, THROW } from '../config';
 import { Bodies } from '../physics/Bodies';
 import { SettleWatcher, standingPins } from '../physics/PinState';
 import { initRapier, PhysicsWorld } from '../physics/World';
-import { FrameMachine, type ThrowResult } from '../rules/FrameMachine';
+import type { FrameMachine } from '../rules/FrameMachine';
+import { MatchMachine, soloMatch, type MatchThrowResult } from '../rules/MatchMachine';
 import { ALL_PINS, xToBoard, type Handedness, type PinNumber } from '../rules/pinLayout';
 import { AimGuide } from '../scene/AimGuide';
 import { Ball } from '../scene/Ball';
@@ -28,7 +29,7 @@ import { DragInput, type ThrowInput } from './Input';
 
 export type GameEvents = {
   /** 한 번의 투구 결과가 확정되었을 때 */
-  onThrowResolved: (result: ThrowResult) => void;
+  onThrowResolved: (result: MatchThrowResult) => void;
   /** 조준 가능 상태가 되었을 때 */
   onReady: () => void;
   /** 상태 표시가 바뀔 때마다 (프레임/파워/위치) */
@@ -40,8 +41,10 @@ const NUDGE_STEP = 0.054;
 
 export class Game {
   readonly scene: SceneSetup;
-  readonly machine = new FrameMachine();
   readonly input: DragInput;
+
+  /** 지금 진행 중인 매치. 자유 연습은 1명짜리 매치다 */
+  private _match: MatchMachine = soloMatch();
 
   private readonly physics: PhysicsWorld;
   private readonly bodies: Bodies;
@@ -73,7 +76,7 @@ export class Game {
   };
 
   private constructor(container: HTMLElement, physics: PhysicsWorld) {
-    this.hand = settings.hand;
+    this.hand = this._match.active.handedness;
     this.physics = physics;
 
     this.scene = new SceneSetup(container);
@@ -105,8 +108,8 @@ export class Game {
       this.events.onStateChanged();
     });
 
-    settings.subscribe((s) => this.applySettings(s.handedness ?? 'right'));
-    this.applySettings(this.hand);
+    settings.subscribe(() => this.applyDisplaySettings());
+    this.applyDisplaySettings();
     this.syncMeshes();
     this.beginAiming();
   }
@@ -122,15 +125,46 @@ export class Game {
   }
 
   // -------------------------------------------------------------------------
+  // 매치
+  // -------------------------------------------------------------------------
+
+  get match(): MatchMachine {
+    return this._match;
+  }
+
+  /**
+   * 지금 차례인 사람의 프레임 상태.
+   *
+   * HUD·점수판·튜토리얼이 1인 시절부터 쓰던 이름이라 그대로 남긴다.
+   * 매치가 1명이면 예전과 완전히 같게 동작한다.
+   */
+  get machine(): FrameMachine {
+    return this._match.activeMachine;
+  }
+
+  /** 매치를 갈아 끼운다 (자유 연습 시작, 대전 시작) */
+  setMatch(match: MatchMachine): void {
+    this._match = match;
+    this.setHandedness(match.active.handedness);
+    this.trajectory.clearAll();
+    this.bodies.setPins([...ALL_PINS]);
+    this.beginAiming();
+  }
+
+  /** 투구 손을 바꾼다 — 대전에서 차례가 넘어갈 때마다 부른다 */
+  setHandedness(hand: Handedness): void {
+    if (hand === this.hand) return;
+    this.hand = hand;
+    this.lane.setHandedness(hand);
+    this.syncMeshes();
+  }
+
+  // -------------------------------------------------------------------------
   // 설정 반영
   // -------------------------------------------------------------------------
 
-  private applySettings(hand: Handedness): void {
+  private applyDisplaySettings(): void {
     const s = settings.value;
-    if (hand !== this.hand) {
-      this.hand = hand;
-      this.lane.setHandedness(hand);
-    }
     this.input.difficulty = s.difficulty;
     this.pins.setNumbersVisible(s.showPinNumbers);
     this.lane.setOilZoneVisible(s.showOilZone);
@@ -170,7 +204,7 @@ export class Game {
     if (this.machine.phase !== 'aiming') return;
 
     this.input.enabled = false;
-    this.machine.throwBall();
+    this._match.throwBall();
     this.watcher.reset();
     this.ballXAtHeadPin = null;
     this.trajectory.beginThrow();
@@ -206,7 +240,10 @@ export class Game {
   debugKnock(count: number): void {
     if (this.machine.isGameOver) return;
     const clamped = clamp(count, 0, this.machine.standingPins.length);
-    const result = this.machine.settleWithCount(Math.round(clamped));
+    const result = this._match.settleWithCount(Math.round(clamped));
+    if (result.turnChanged && !result.matchOver) {
+      this.setHandedness(this._match.active.handedness);
+    }
     this.events.onThrowResolved(result);
     this.beginAiming();
   }
@@ -239,7 +276,8 @@ export class Game {
   }
 
   restart(): void {
-    this.machine.reset();
+    this._match.reset();
+    this.setHandedness(this._match.active.handedness);
     this.trajectory.clearAll();
     this.beginAiming();
   }
@@ -290,13 +328,18 @@ export class Game {
     const phase = this.machine.phase;
     if (phase !== 'thrown' && phase !== 'settling') return;
 
-    if (this.bodies.ballIsOut()) this.machine.beginSettling();
+    if (this.bodies.ballIsOut()) this._match.beginSettling();
 
     const status = this.watcher.update(this.bodies, physicsDt);
     if (status !== 'settled') return;
 
     const remaining = standingPins(this.bodies, this.machine.standingPins);
-    const result = this.machine.settle(remaining);
+    const result = this._match.settle(remaining);
+
+    // 차례가 넘어갔으면 다음 사람의 손으로 레인 표시를 바꾼다
+    if (result.turnChanged && !result.matchOver) {
+      this.setHandedness(this._match.active.handedness);
+    }
 
     this.camera.setMode('result');
     this.events.onThrowResolved(result);

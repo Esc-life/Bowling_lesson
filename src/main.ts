@@ -1,13 +1,12 @@
 /**
  * 앱 시작점.
  *
- * 흐름: 손 고르기(첫 실행만) → 게임 시작 → 조준·투구 반복
+ * 흐름: 게임 시작 → 조준·투구 반복
  *       우상단 '배우기' 버튼 → 튜토리얼 (영역 메뉴 → 레슨 → 퀴즈/드릴)
  *
  * 쿼리스트링
  *   ?debug=1    숫자 키(0~9, 0=10개)로 물리를 건너뛰고 핀 수를 직접 입력.
  *               점수판 로직을 물리 대기 없이 10프레임 통과시킬 수 있다.
- *   ?hand=left  손 선택 화면을 건너뛰고 바로 지정 (수업 시연용)
  *   ?lesson=B3  해당 레슨을 바로 연다 (수업 딥링크)
  *   ?area=D     영역 메뉴를 해당 영역이 강조된 채로 연다
  */
@@ -16,11 +15,10 @@ import { Game } from './core/Game';
 import { settings } from './settings';
 import { DebugPanel } from './ui/DebugPanel';
 import { Hud } from './ui/Hud';
-import { HandPicker } from './ui/HandPicker';
 import { ObserveControls } from './ui/ObserveControls';
 import { Scoreboard } from './ui/Scoreboard';
 import { TutorialUI } from './ui/TutorialUI';
-import type { ThrowResult } from './rules/FrameMachine';
+import type { MatchThrowResult } from './rules/MatchMachine';
 import type { AreaId } from './tutorial/types';
 
 const params = new URLSearchParams(location.search);
@@ -36,24 +34,6 @@ async function main(): Promise<void> {
   const stage = must('stage');
   const ui = must('ui');
   const loading = must('loading');
-
-  // ?hand=left/right 로 선택 화면을 건너뛸 수 있다
-  const handParam = params.get('hand');
-  if (handParam === 'left' || handParam === 'right') {
-    settings.update({ handedness: handParam });
-  }
-
-  if (settings.needsHandChoice) {
-    await new Promise<void>((resolve) => {
-      const picker = new HandPicker((hand) => {
-        settings.update({ handedness: hand });
-        picker.hide();
-        resolve();
-      });
-      ui.appendChild(picker.element);
-      loading.classList.add('is-hidden');
-    });
-  }
 
   loading.classList.remove('is-hidden');
   loading.textContent = '볼링장을 만드는 중…';
@@ -110,7 +90,7 @@ async function main(): Promise<void> {
       tutorial.handleReady();
       refresh();
     },
-    onThrowResolved: (result: ThrowResult) => {
+    onThrowResolved: (result: MatchThrowResult) => {
       // 드릴 중에는 튜토리얼이 결과를 소비한다 — 핀 일부만 세운 드릴에서는
       // 기계가 계산한 "스트라이크!" 문구가 틀리므로 기본 배너를 막는다.
       const suppressBanner = tutorial.handleThrowResolved(result);

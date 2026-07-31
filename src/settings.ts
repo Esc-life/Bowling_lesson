@@ -1,18 +1,19 @@
 /**
- * 사용자 설정 (투구 손, 난이도, 표시 옵션).
+ * 전역 표시 설정 (난이도, 관찰 옵션).
+ *
+ * 투구 손은 여기 없다. 공용 PC에서 왼손잡이와 오른손잡이가 번갈아 쓰면
+ * 전역 설정이 서로 덮어써 버린다. 손은 플레이어마다 저장한다
+ * (players/PlayerStore.ts).
  *
  * 스키마 버전을 키에 넣어 두면 나중에 설정 항목이 바뀌어도 옛 저장
  * 데이터가 앱을 깨뜨리지 않는다. 모르는 값은 조용히 기본값으로 되돌린다.
  */
 
 import { DIFFICULTY, type DifficultyName } from './config';
-import type { Handedness } from './rules/pinLayout';
 
-const STORAGE_KEY = 'bowling3d.settings.v1';
+const STORAGE_KEY = 'bowling3d.settings.v2';
 
 export type Settings = {
-  /** 아직 한 번도 고르지 않았으면 null → 시작 화면에서 물어본다 */
-  handedness: Handedness | null;
   difficulty: DifficultyName;
   /** 관찰 모드: 핀 번호 표시 */
   showPinNumbers: boolean;
@@ -23,16 +24,11 @@ export type Settings = {
 };
 
 const DEFAULTS: Settings = {
-  handedness: null,
   difficulty: 'easy',
   showPinNumbers: false,
   showOilZone: false,
   showTrajectory: false,
 };
-
-function isHandedness(v: unknown): v is Handedness {
-  return v === 'right' || v === 'left';
-}
 
 function isDifficulty(v: unknown): v is DifficultyName {
   return typeof v === 'string' && v in DIFFICULTY;
@@ -42,7 +38,6 @@ function sanitize(raw: unknown): Settings {
   if (typeof raw !== 'object' || raw === null) return { ...DEFAULTS };
   const o = raw as Record<string, unknown>;
   return {
-    handedness: isHandedness(o['handedness']) ? o['handedness'] : DEFAULTS.handedness,
     difficulty: isDifficulty(o['difficulty']) ? o['difficulty'] : DEFAULTS.difficulty,
     showPinNumbers: o['showPinNumbers'] === true,
     showOilZone: o['showOilZone'] === true,
@@ -62,16 +57,6 @@ class SettingsStore {
 
   get value(): Readonly<Settings> {
     return this.current;
-  }
-
-  /** 손을 아직 고르지 않았는가 → 시작 화면을 띄울지 판단 */
-  get needsHandChoice(): boolean {
-    return this.current.handedness === null;
-  }
-
-  /** 손을 고르기 전에도 판정이 필요할 때의 기본값 */
-  get hand(): Handedness {
-    return this.current.handedness ?? 'right';
   }
 
   update(patch: Partial<Settings>): void {

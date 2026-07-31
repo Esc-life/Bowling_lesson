@@ -12,7 +12,9 @@
  */
 
 import type { Game } from '../core/Game';
+import { players } from '../players/PlayerStore';
 import type { ThrowResult } from '../rules/FrameMachine';
+import type { Handedness } from '../rules/pinLayout';
 import { settings } from '../settings';
 import { DrillRunner } from '../tutorial/DrillRunner';
 import { findLesson } from '../tutorial/curriculum';
@@ -45,6 +47,11 @@ export class TutorialUI {
   private session: DrillSession | ObserveSession | null = null;
   private reopenTimer: number | null = null;
 
+  /** 지금 배우는 사람의 손. 포켓·화살표·드릴 목표가 전부 여기에 맞춰진다 */
+  private get hand(): Handedness {
+    return players.current?.handedness ?? 'right';
+  }
+
   constructor(
     private readonly game: Game,
     container: HTMLElement,
@@ -53,7 +60,7 @@ export class TutorialUI {
     this.flow = new TutorialFlow(Progress.load());
     this.currentLessonId = this.flow.currentLessonId;
 
-    this.panel = new TutorialPanel(settings.hand, {
+    this.panel = new TutorialPanel(this.hand, {
       onMenu: () => {
         this.abandonSession();
         this.openMenu();
@@ -73,9 +80,9 @@ export class TutorialUI {
         this.report.show(this.flow);
       },
       onReset: () => {
-        // 공용 PC에서 다음 학생을 위한 초기화. 손 선택 화면부터 다시.
+        // 이 플레이어의 진도만 비운다. 손은 플레이어에 저장되어 있고,
+        // 관찰 옵션 같은 전역 설정은 다른 사람 것이기도 하므로 남겨 둔다.
         Progress.clear();
-        settings.clear();
         location.reload();
       },
     });
@@ -92,7 +99,7 @@ export class TutorialUI {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset['act'];
       if (act === 'quit') this.quitSession();
       if (act === 'demo-straight') this.demoThrow(0);
-      if (act === 'demo-hook') this.demoThrow(settings.hand === 'right' ? 12 : -12);
+      if (act === 'demo-hook') this.demoThrow(this.hand === 'right' ? 12 : -12);
     });
 
     container.appendChild(this.panel.element);
@@ -100,7 +107,7 @@ export class TutorialUI {
     container.appendChild(this.report.element);
     container.appendChild(this.bar);
 
-    settings.subscribe((s) => this.panel.setHand(s.handedness ?? 'right'));
+    players.subscribe(() => this.panel.setHand(this.hand));
   }
 
   // -------------------------------------------------------------------------
@@ -129,7 +136,7 @@ export class TutorialUI {
 
     this.menu.hide();
     this.report.hide();
-    this.panel.setHand(settings.hand);
+    this.panel.setHand(this.hand);
     const lesson = found.area.lessons.find((l) => l.id === lessonId)!;
     this.panel.showLesson(lesson, this.lessonContext(lesson));
   }
@@ -184,7 +191,7 @@ export class TutorialUI {
     const lessonId = this.currentLessonId;
     if (lessonId === null) return;
 
-    const runner = new DrillRunner(drill, settings.hand);
+    const runner = new DrillRunner(drill, this.hand);
     this.session = { kind: 'drill', lessonId, runner };
     this.panel.hide();
     this.menu.hide();
@@ -332,7 +339,7 @@ export class TutorialUI {
 
   private demoThrow(spin: number): void {
     // 곧은 공은 한가운데에서, 휘는 공은 반대쪽에서 출발해 포켓 쪽으로 휜다
-    const startX = spin === 0 ? 0 : settings.hand === 'right' ? 0.15 : -0.15;
+    const startX = spin === 0 ? 0 : this.hand === 'right' ? 0.15 : -0.15;
     this.game.throwProgrammatically({ startX, power: 0.55, angle: 0, spin });
   }
 

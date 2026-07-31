@@ -1420,3 +1420,29 @@ button:disabled {
     flex: 1 1 auto;
   }
 }
+
+/* 대전 점수판 — 사람마다 한 줄 */
+.scoreboard--match .match-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.scoreboard--match .match-row--active {
+  opacity: 1;
+}
+.scoreboard--match .match-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scoreboard--match .rank {
+  margin-inline-start: 0.3rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}

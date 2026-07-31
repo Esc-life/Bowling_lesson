@@ -1446,3 +1446,65 @@ button:disabled {
   font-size: 0.75rem;
   opacity: 0.8;
 }
+
+/* ---------------------------------------------------------------- 플레이어 선택 */
+
+/* .primary-btn / .danger-btn / .icon-btn은 이 화면이 처음 쓴다.
+   색은 기존 .big-btn--accent(파란/빨강 강조)·.hand-choice 배색을 그대로 따랐다. */
+.primary-btn {
+  color: #fff;
+  background: var(--ball-blue);
+  border-color: var(--ball-blue-deep);
+  box-shadow: 0 4px 0 var(--ball-blue-deep);
+}
+
+.primary-btn:hover {
+  background: #4574d9;
+}
+
+.danger-btn {
+  color: #fff;
+  background: var(--pin-red);
+  border-color: var(--pin-red-deep);
+  box-shadow: 0 4px 0 var(--pin-red-deep);
+}
+
+.danger-btn:hover {
+  background: #e2483f;
+}
+
+.icon-btn {
+  width: 44px;
+  padding: 0;
+  font-size: 18px;
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: none;
+  color: var(--ink-paper-dim);
+}
+
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  transform: none;
+}
+
+.player-list { list-style: none; margin: 0.8rem 0; padding: 0; display: grid; gap: 0.5rem; }
+.player-row { display: flex; align-items: center; gap: 0.5rem; }
+.player-pick {
+  flex: 1; display: grid; gap: 0.15rem; text-align: start;
+  padding: 0.7rem 0.9rem; border-radius: 0.7rem; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: inherit;
+}
+.player-pick:hover { background: rgba(255, 255, 255, 0.16); }
+.player-name { font-weight: 700; font-size: 1.05rem; }
+.player-meta { font-size: 0.8rem; opacity: 0.75; }
+.delete-confirm { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.delete-warn { font-size: 0.8rem; opacity: 0.85; }
+.field { display: grid; gap: 0.3rem; margin-block: 0.8rem; }
+.field input {
+  padding: 0.6rem 0.8rem; border-radius: 0.6rem; font-size: 1.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.25); color: inherit;
+}
+.form-error { min-height: 1.2em; color: #ffb4a8; font-size: 0.85rem; margin: 0.3rem 0; }
+.row-buttons { display: flex; gap: 0.6rem; align-items: center; }
+.hand-choice.is-on { outline: 2px solid currentColor; }

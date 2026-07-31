@@ -201,7 +201,14 @@ export class Game {
   }
 
   private throwBall(input: ThrowInput): void {
-    if (this.machine.phase !== 'aiming') return;
+    // machine.phase는 settle() 안에서 다음 조준 상태로 즉시 바뀌지만, 핀을
+    // 다시 세우고 공을 놓는 beginAiming()은 결과를 보여주는 1400ms 뒤에야
+    // 실행된다(updateThrowProgress 참고). phase만 보고 막으면 그 1400ms
+    // 사이에 던져진 공이 아직 이전 핀이 남아 있는 레인을 지나가며 0개로
+    // 기록된다. 사람의 드래그는 Input.enabled가 이 창을 이미 막아 주지만
+    // throwProgrammatically()(레슨 시연 투구)는 이 메서드를 직접 부르므로
+    // 같은 조건을 여기서도 강제해야 한다.
+    if (this.machine.phase !== 'aiming' || !this.input.enabled) return;
 
     this.input.enabled = false;
     this._match.throwBall();

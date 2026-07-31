@@ -180,7 +180,18 @@ export class MatchMachine {
   }
 }
 
-/** 자유 연습·튜토리얼 드릴에서 쓰는 1명짜리 매치 */
-export function soloMatch(name: string = '나', totalFrames: number = TOTAL_FRAMES): MatchMachine {
-  return new MatchMachine([{ id: 'solo', name, handedness: 'right' }], totalFrames);
+/**
+ * 자유 연습·튜토리얼 드릴에서 쓰는 1명짜리 매치.
+ *
+ * 손을 반드시 받아 둔다. "active.handedness가 지금 던지는 사람의 손"이라는
+ * 약속이 1명일 때도 지켜져야 하기 때문이다. 이 값을 고정으로 박아 두면
+ * reset() 뒤에 손을 다시 맞추는 쪽(Game.restart)이 왼손 학생을 오른손으로
+ * 되돌려 버린다.
+ */
+export function soloMatch(
+  name: string = '나',
+  totalFrames: number = TOTAL_FRAMES,
+  handedness: Handedness = 'right',
+): MatchMachine {
+  return new MatchMachine([{ id: 'solo', name, handedness }], totalFrames);
 }

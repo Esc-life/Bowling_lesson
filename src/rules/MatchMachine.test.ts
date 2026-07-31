@@ -38,6 +38,24 @@ describe('MatchMachine — 생성', () => {
     expect(m.players).toHaveLength(1);
     expect(m.totalFrames).toBe(10);
   });
+
+  it('soloMatch는 넘긴 손을 그대로 보존한다', () => {
+    const m = soloMatch('민준', 3, 'left');
+    expect(m.active.handedness).toBe('left');
+    expect(m.active.name).toBe('민준');
+    expect(m.totalFrames).toBe(3);
+  });
+
+  it('soloMatch의 손 기본값은 오른손이다', () => {
+    expect(soloMatch().active.handedness).toBe('right');
+  });
+
+  it('reset 후에도 손이 유지된다 — restart가 손을 되돌리면 안 된다', () => {
+    const m = soloMatch('민준', 3, 'left');
+    m.settleWithCount(10);
+    m.reset();
+    expect(m.active.handedness).toBe('left');
+  });
 });
 
 describe('MatchMachine — 턴 순서', () => {

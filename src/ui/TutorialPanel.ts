@@ -19,7 +19,7 @@ import { GlossaryPopover } from './GlossaryPopover';
 export type PanelCallbacks = {
   /** 목록(영역 메뉴)으로 */
   onMenu: () => void;
-  /** 튜토리얼을 닫고 자유 연습으로 */
+  /** 튜토리얼을 닫고 게임 화면으로 */
   onClose: () => void;
   /** 다음 레슨으로 (컨트롤러가 순서를 안다) */
   onNext: () => void;
@@ -357,7 +357,7 @@ export class TutorialPanel {
       <div class="tut-head">
         <button type="button" class="text-btn" data-act="menu">← 목록</button>
         <div class="tut-crumb">${crumb}</div>
-        <button type="button" class="text-btn" data-act="close">✕ 자유 연습</button>
+        <button type="button" class="text-btn" data-act="close">✕ 닫기</button>
       </div>`;
   }
 

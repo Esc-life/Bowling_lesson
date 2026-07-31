@@ -1,11 +1,16 @@
 /**
- * 영역 선택 화면.
+ * 홈 화면 — 영역 선택과 놀기 버튼.
  *
  * 영역을 잠그지 않는다 — 교사가 필요한 영역만 골라 쓸 수 있어야 한다.
  * 권장 순서만 안내 문구로 보여준다. 공용 PC를 위해 진행률 초기화 버튼을
  * 숨기지 않고 여기 둔다.
+ *
+ * 자유 연습과 대전은 다 배운 학생만 열 수 있다. 잠긴 버튼을 감추지 않고
+ * 이유와 함께 보여 준다 — 목표가 보여야 배울 마음이 생긴다.
  */
 
+import { players } from '../players/PlayerStore';
+import { practiceLockReason } from '../players/unlock';
 import type { TutorialFlow } from '../tutorial/TutorialFlow';
 import type { AreaId } from '../tutorial/types';
 
@@ -15,6 +20,12 @@ export type AreaMenuCallbacks = {
   onReport: () => void;
   /** 진행률과 설정을 지우고 처음부터 (확인은 메뉴 안에서 이미 받았다) */
   onReset: () => void;
+  /** 자유 연습으로 (해금된 경우에만 불린다) */
+  onFreePractice: () => void;
+  /** 대전 참가자 고르기로 (해금 여부는 다음 화면에서 판정한다) */
+  onMatch: () => void;
+  /** 플레이어 바꾸기 */
+  onSwitchPlayer: () => void;
 };
 
 export class AreaMenu {
@@ -40,7 +51,24 @@ export class AreaMenu {
         return;
       }
 
-      switch (target.dataset['act']) {
+      const act = target.dataset['act'];
+
+      if (act === 'free-practice' || act === 'match') {
+        const lock = target.dataset['lock'];
+        if (lock !== undefined) {
+          // 잠긴 이유를 그 자리에서 보여 준다. 감추면 있는 줄도 모른다.
+          this.showLockNote(target, lock);
+          return;
+        }
+        if (act === 'free-practice') this.callbacks.onFreePractice();
+        else this.callbacks.onMatch();
+        return;
+      }
+
+      switch (act) {
+        case 'switch-player':
+          this.callbacks.onSwitchPlayer();
+          break;
         case 'continue': {
           const next = target.dataset['next'];
           if (next !== undefined) this.callbacks.onOpenLesson(next);
@@ -119,10 +147,42 @@ export class AreaMenu {
         </div>`;
     });
 
+    const player = players.current;
+    const practiceLock = player === null ? '먼저 플레이어를 골라 주세요.' : practiceLockReason(player);
+    const playerBar =
+      player === null
+        ? ''
+        : `
+      <div class="player-bar">
+        <span class="player-current">${escapeHtml(player.name)}</span>
+        <button type="button" class="text-btn" data-act="switch-player">바꾸기</button>
+      </div>
+    `;
+
+    const playButtons = `
+      <div class="play-buttons">
+        <button type="button" class="play-btn${practiceLock === null ? '' : ' is-locked'}"
+                data-act="free-practice"
+                ${practiceLock === null ? '' : `data-lock="${escapeHtml(practiceLock)}"`}>
+          <span class="play-icon" aria-hidden="true">${practiceLock === null ? '🎳' : '🔒'}</span>
+          <span class="play-name">자유 연습</span>
+          <span class="play-desc">${escapeHtml(practiceLock ?? '배운 걸로 마음껏 던져 봐요')}</span>
+        </button>
+        <button type="button" class="play-btn${practiceLock === null ? '' : ' is-locked'}"
+                data-act="match"
+                ${practiceLock === null ? '' : `data-lock="${escapeHtml(practiceLock)}"`}>
+          <span class="play-icon" aria-hidden="true">${practiceLock === null ? '🏆' : '🔒'}</span>
+          <span class="play-name">대전</span>
+          <span class="play-desc">${practiceLock === null ? '친구와 번갈아 쳐요' : '다 배우면 친구와 겨룰 수 있어요'}</span>
+        </button>
+      </div>
+    `;
+
     this.panelEl.innerHTML = `
+      ${playerBar}
       <div class="tut-head">
         <div class="tut-crumb">볼링 배우기</div>
-        <button type="button" class="text-btn" data-act="close">✕ 자유 연습</button>
+        <button type="button" class="text-btn" data-act="close">✕ 닫기</button>
       </div>
       <div class="menu-overall">
         <div class="menu-overall-bar"><div style="width:${Math.round(flow.overallRatio * 100)}%"></div></div>
@@ -136,6 +196,7 @@ export class AreaMenu {
           : `<div class="menu-alldone">🏆 모든 레슨을 마쳤어요!</div>`
       }
       <div class="areas">${areaCards.join('')}</div>
+      ${playButtons}
       <div class="menu-foot">
         <button type="button" class="text-btn" data-act="report">내 리포트 보기</button>
         <span class="reset-zone">
@@ -154,6 +215,19 @@ export class AreaMenu {
     }
   }
 
+  /** 잠긴 버튼을 누르면 이유를 잠깐 띄운다 */
+  private showLockNote(button: HTMLElement, text: string): void {
+    const desc = button.querySelector<HTMLElement>('.play-desc');
+    if (desc === null) return;
+    const original = desc.textContent ?? '';
+    desc.textContent = text;
+    button.classList.add('is-shaking');
+    window.setTimeout(() => {
+      desc.textContent = original;
+      button.classList.remove('is-shaking');
+    }, 2400);
+  }
+
   private showResetConfirm(): void {
     const confirm = this.panelEl.querySelector<HTMLElement>('.reset-confirm');
     const ask = this.panelEl.querySelector<HTMLElement>('[data-act="reset-ask"]');
@@ -167,4 +241,11 @@ export class AreaMenu {
     if (confirm !== null) confirm.hidden = true;
     if (ask !== null) ask.hidden = false;
   }
+}
+
+/** 이름은 사용자가 입력한 값이라 그대로 innerHTML에 넣으면 안 된다 */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
+  );
 }

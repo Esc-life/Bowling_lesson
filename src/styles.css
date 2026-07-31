@@ -1551,3 +1551,18 @@ button:disabled {
 }
 .frame-choice.is-on { background: #f2f2f2; color: #1a1a1a; }
 .hand-choice.is-on { outline: 2px solid currentColor; }
+
+/* ---------------------------------------------------------------- 홈 — 플레이어 줄과 잠금 */
+
+/* .play-buttons / .play-btn 계열은 위(자유 연습·대전 시작)에서 이미 정의했다.
+   여기서는 홈에만 필요한 것 — 지금 누구인지 보여 주는 줄과 잠금 표시 — 만 더한다. */
+.player-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.player-current { font-weight: 700; }
+.play-btn.is-locked { opacity: 0.6; }
+.play-btn.is-shaking { animation: lock-shake 0.35s; }
+
+@keyframes lock-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}

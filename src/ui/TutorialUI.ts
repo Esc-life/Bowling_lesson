@@ -28,6 +28,12 @@ import { TutorialPanel, type LessonContext } from './TutorialPanel';
 export type TutorialHooks = {
   /** 드릴/관찰 세션이 켜지거나 꺼질 때 (점수판 숨김 등에 쓴다) */
   onSessionChange?: (state: { active: boolean; hideScoreboard: boolean }) => void;
+  /** 홈에서 자유 연습을 골랐을 때 */
+  onFreePractice: () => void;
+  /** 홈에서 대전을 골랐을 때 */
+  onMatch: () => void;
+  /** 홈에서 플레이어 바꾸기를 골랐을 때 */
+  onSwitchPlayer: () => void;
 };
 
 type DrillSession = { kind: 'drill'; lessonId: string; runner: DrillRunner };
@@ -37,7 +43,8 @@ type ObserveSession = { kind: 'observe'; lessonId: string; times: number; count:
 const RESULT_LINGER_MS = 1800;
 
 export class TutorialUI {
-  private readonly flow: TutorialFlow;
+  /** 플레이어가 바뀌면 통째로 갈아 끼운다 (reloadProgress) */
+  private flow: TutorialFlow;
   private readonly panel: TutorialPanel;
   private readonly menu: AreaMenu;
   private readonly report: ReportScreen;
@@ -55,7 +62,7 @@ export class TutorialUI {
   constructor(
     private readonly game: Game,
     container: HTMLElement,
-    private readonly hooks: TutorialHooks = {},
+    private readonly hooks: TutorialHooks,
   ) {
     this.flow = new TutorialFlow(Progress.load());
     this.currentLessonId = this.flow.currentLessonId;
@@ -84,6 +91,18 @@ export class TutorialUI {
         // 관찰 옵션 같은 전역 설정은 다른 사람 것이기도 하므로 남겨 둔다.
         Progress.clear();
         location.reload();
+      },
+      onFreePractice: () => {
+        this.closeAll();
+        this.hooks.onFreePractice();
+      },
+      onMatch: () => {
+        this.closeAll();
+        this.hooks.onMatch();
+      },
+      onSwitchPlayer: () => {
+        this.closeAll();
+        this.hooks.onSwitchPlayer();
       },
     });
 
@@ -118,6 +137,18 @@ export class TutorialUI {
     return this.panel.visible || this.menu.visible || this.report.visible || this.session !== null;
   }
 
+  /**
+   * 플레이어가 바뀌었을 때 그 사람의 진도로 다시 읽는다.
+   *
+   * 이걸 빠뜨리면 앞사람의 진도를 들고 있다가 다음 저장에서 새 플레이어의
+   * 진도를 덮어쓴다.
+   */
+  reloadProgress(): void {
+    this.flow = new TutorialFlow(Progress.load());
+    this.currentLessonId = this.flow.currentLessonId;
+    this.panel.setHand(this.hand);
+  }
+
   openMenu(focusArea?: AreaId): void {
     this.panel.hide();
     this.report.hide();
@@ -141,7 +172,7 @@ export class TutorialUI {
     this.panel.showLesson(lesson, this.lessonContext(lesson));
   }
 
-  /** 튜토리얼 화면을 전부 닫고 자유 연습으로 */
+  /** 튜토리얼 화면을 전부 닫고 게임 화면으로 */
   closeAll(): void {
     this.abandonSession();
     this.panel.hide();

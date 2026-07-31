@@ -6,6 +6,8 @@
  * 별도의 용어 암기 레슨은 만들지 않는다 — 필요한 순간에 보는 게 낫다.
  */
 
+import { escapeHtml } from '../util/html';
+
 export const GLOSSARY: Record<string, string> = {
   레인: '공이 굴러가는 긴 나무 길이에요.',
   파울선: '넘으면 안 되는 선이에요. 밟으면 그 공은 0점!',
@@ -17,14 +19,6 @@ export const GLOSSARY: Record<string, string> = {
   스트라이크: '첫 공에 핀 10개를 다 쓰러뜨린 거예요. 다음 공 두 번을 더해요.',
   화살표: '레인 바닥에 그려진 조준용 표시예요. 핀보다 가까워서 맞히기 쉬워요.',
 };
-
-export function escapeHtml(s: string): string {
-  return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
 
 /**
  * 본문 텍스트에서 용어집에 있는 낱말을 찾아 밑줄 링크로 바꾼다.

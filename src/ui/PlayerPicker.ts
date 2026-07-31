@@ -12,12 +12,7 @@ import { checkName, MAX_NAME_LENGTH, players } from '../players/PlayerStore';
 import type { Player } from '../players/types';
 import { lessonCount } from '../players/unlock';
 import type { Handedness } from '../rules/pinLayout';
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
-  );
-}
+import { escapeHtml } from '../util/html';
 
 export class PlayerPicker {
   readonly element: HTMLElement;
@@ -36,6 +31,7 @@ export class PlayerPicker {
     this.element.addEventListener('input', (e) => this.handleInput(e));
     // 목록이 비어 있으면 곧장 만들기 화면으로 — 빈 목록을 보여 줄 이유가 없다
     this.mode = players.players.length === 0 ? 'create' : 'list';
+    this.resetDraft();
     this.render();
   }
 
@@ -43,7 +39,7 @@ export class PlayerPicker {
     this.element.hidden = false;
     this.mode = players.players.length === 0 ? 'create' : 'list';
     this.pendingDelete = null;
-    this.draftName = '';
+    this.resetDraft();
     this.render();
   }
 
@@ -52,6 +48,20 @@ export class PlayerPicker {
   }
 
   // ---------------------------------------------------------------------------
+
+  /**
+   * 만들기 화면을 새것으로 되돌린다.
+   *
+   * 공용 PC라 앞사람이 고른 손이 남아 있으면 다음 학생이 그대로 시작해
+   * 뒤집힌 레인에서 배우게 된다. 손을 바꾸는 화면은 없다.
+   *
+   * 옛 버전에서 넘어오는 첫 학생에게만 그때 쓰던 손을 초기 선택으로
+   * 켜 준다. 어디까지나 초기 선택이라, 눌러서 바꾸면 그 값이 이긴다.
+   */
+  private resetDraft(): void {
+    this.draftName = '';
+    this.hand = players.pendingHandedness ?? 'right';
+  }
 
   private render(): void {
     this.element.innerHTML = this.mode === 'create' ? this.createHtml() : this.listHtml();
@@ -142,7 +152,7 @@ export class PlayerPicker {
     }
     if (d['new'] !== undefined) {
       this.mode = 'create';
-      this.draftName = '';
+      this.resetDraft();
       this.render();
       return;
     }
@@ -155,7 +165,7 @@ export class PlayerPicker {
       players.remove(d['deleteYes']);
       this.pendingDelete = null;
       this.mode = players.players.length === 0 ? 'create' : 'list';
-      if (this.mode === 'create') this.draftName = '';
+      if (this.mode === 'create') this.resetDraft();
       this.render();
       return;
     }

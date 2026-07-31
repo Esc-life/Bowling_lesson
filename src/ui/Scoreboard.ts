@@ -8,6 +8,7 @@
 import type { FrameView } from '../rules/Scorecard';
 import { Scorecard } from '../rules/Scorecard';
 import type { MatchMachine } from '../rules/MatchMachine';
+import { escapeHtml } from '../util/html';
 
 export type ScoreboardOptions = {
   /** 이 프레임의 누적 점수를 빈칸(?)으로 비운다 — 퀴즈용 */
@@ -123,17 +124,4 @@ export class Scoreboard {
       </div>
     `;
   }
-}
-
-/** 이름은 사용자가 입력한 값이라 그대로 innerHTML에 넣으면 안 된다 */
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&': return '&amp;';
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '"': return '&quot;';
-      default: return '&#39;';
-    }
-  });
 }

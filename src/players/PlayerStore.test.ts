@@ -133,12 +133,34 @@ describe('PlayerStore — 구버전 이관', () => {
     expect(store.players).toHaveLength(0);
   });
 
-  it('첫 플레이어를 만들면 옛 진행률과 손을 물려받는다', () => {
+  it('첫 플레이어를 만들면 옛 진행률을 물려받는다', () => {
     const store = new PlayerStore(memoryStorage(legacy));
-    const p = store.create('민준', 'right'); // 화면에서 고른 손보다 옛 설정이 우선
+    const p = store.create('민준', 'left');
     expect(p.progress.completedLessons).toEqual(['A1', 'A2', 'A3']);
     expect(p.progress.quizScores['A2']).toEqual({ correct: 2, total: 3 });
-    expect(p.handedness).toBe('left');
+  });
+
+  it('손은 화면에서 고른 값이 이긴다 — 옛 설정이 있어도', () => {
+    // 옛 설정은 'left'다. 화면에서 오른손을 골랐으면 오른손이어야 한다.
+    // 손을 나중에 바꾸는 화면이 없으므로, 여기서 지면 되돌릴 방법이 없다.
+    const store = new PlayerStore(memoryStorage(legacy));
+    expect(store.create('민준', 'right').handedness).toBe('right');
+  });
+
+  it('옛 손을 초기 선택용으로 알려 준다', () => {
+    const store = new PlayerStore(memoryStorage(legacy));
+    expect(store.pendingHandedness).toBe('left');
+    store.create('민준', 'right');
+    // 이관이 끝나면 더는 물려줄 값이 없다
+    expect(store.pendingHandedness).toBeNull();
+  });
+
+  it('옛 설정이 없으면 물려줄 손도 없다', () => {
+    const store = new PlayerStore(
+      memoryStorage({ 'bowling3d.progress.v1': legacy['bowling3d.progress.v1'] }),
+    );
+    expect(store.pendingMigration).toBe(true);
+    expect(store.pendingHandedness).toBeNull();
   });
 
   it('이관 후에는 옛 키를 지우고 대기 상태가 풀린다', () => {
@@ -181,6 +203,40 @@ describe('PlayerStore — 깨진 데이터', () => {
     });
     const store = new PlayerStore(storage);
     expect(store.players.map((p) => p.name)).toEqual(['가']);
+  });
+
+  it('quizScores가 null이면 빈 진행률로 되돌린다', () => {
+    // typeof null === 'object'라 검사를 그냥 통과하면, 나중에
+    // Object.entries(null)에서 터져 앱이 아예 뜨지 않는다.
+    const storage = memoryStorage({
+      'bowling3d.players.v1': JSON.stringify({
+        players: [
+          {
+            id: 'a',
+            name: '가',
+            handedness: 'right',
+            progress: { completedLessons: ['A1'], quizScores: null, currentLessonId: null },
+            createdAt: 1,
+          },
+        ],
+        lastPlayerId: 'a',
+      }),
+    });
+    const store = new PlayerStore(storage);
+    expect(store.current!.progress.quizScores).toEqual({});
+    expect(store.current!.progress.completedLessons).toEqual([]);
+  });
+
+  it('옛 진행률의 quizScores가 null이면 이관하지 않는다', () => {
+    const store = new PlayerStore(
+      memoryStorage({
+        'bowling3d.progress.v1': JSON.stringify({
+          completedLessons: ['A1'],
+          quizScores: null,
+        }),
+      }),
+    );
+    expect(store.pendingMigration).toBe(false);
   });
 
   it('lastPlayerId가 없는 사람을 가리키면 첫 사람을 고른다', () => {

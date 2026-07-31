@@ -7,16 +7,22 @@
  *
  * 자유 연습과 대전은 다 배운 학생만 열 수 있다. 잠긴 버튼을 감추지 않고
  * 이유와 함께 보여 준다 — 목표가 보여야 배울 마음이 생긴다.
+ *
+ * 닫기 버튼이 없다. 여기가 맨 위 화면이라 닫고 갈 곳이 없기 때문이다.
+ * 닫기가 있으면 잠금 버튼 바로 옆의 ✕ 한 번으로 정식 경기 화면이 열려,
+ * 아직 아무것도 안 배운 학생이 잠금을 통째로 건너뛴다. 게임 화면으로는
+ * 자유 연습·대전 버튼을 통해서만 들어간다.
  */
 
 import { players } from '../players/PlayerStore';
 import { practiceLockReason } from '../players/unlock';
+import { Progress } from '../tutorial/Progress';
 import type { TutorialFlow } from '../tutorial/TutorialFlow';
 import type { AreaId } from '../tutorial/types';
+import { escapeHtml } from '../util/html';
 
 export type AreaMenuCallbacks = {
   onOpenLesson: (lessonId: string) => void;
-  onClose: () => void;
   onReport: () => void;
   /** 진행률과 설정을 지우고 처음부터 (확인은 메뉴 안에서 이미 받았다) */
   onReset: () => void;
@@ -74,9 +80,6 @@ export class AreaMenu {
           if (next !== undefined) this.callbacks.onOpenLesson(next);
           break;
         }
-        case 'close':
-          this.callbacks.onClose();
-          break;
         case 'report':
           this.callbacks.onReport();
           break;
@@ -103,13 +106,16 @@ export class AreaMenu {
     this.element.hidden = true;
   }
 
-  /** @param focusArea 딥링크(?area=D)로 열 때 강조할 영역 */
-  show(flow: TutorialFlow, focusArea?: AreaId): void {
+  /**
+   * @param focusArea 딥링크(?area=D)로 열 때 강조할 영역
+   * @param notice 화면 맨 위에 한 줄 알림 (예: 대전을 그만뒀다는 안내)
+   */
+  show(flow: TutorialFlow, focusArea?: AreaId, notice?: string): void {
     this.element.hidden = false;
-    this.render(flow, focusArea);
+    this.render(flow, focusArea, notice);
   }
 
-  private render(flow: TutorialFlow, focusArea?: AreaId): void {
+  private render(flow: TutorialFlow, focusArea?: AreaId, notice?: string): void {
     const doneCount = flow.allAreaProgress().reduce((n, p) => n + p.completed, 0);
     const totalCount = flow.allAreaProgress().reduce((n, p) => n + p.total, 0);
     const nextLesson = flow.firstIncomplete();
@@ -182,8 +188,8 @@ export class AreaMenu {
       ${playerBar}
       <div class="tut-head">
         <div class="tut-crumb">볼링 배우기</div>
-        <button type="button" class="text-btn" data-act="close">✕ 닫기</button>
       </div>
+      ${notice === undefined ? '' : `<div class="menu-notice">${escapeHtml(notice)}</div>`}
       <div class="menu-overall">
         <div class="menu-overall-bar"><div style="width:${Math.round(flow.overallRatio * 100)}%"></div></div>
         <span>${doneCount} / ${totalCount} 레슨</span>
@@ -199,14 +205,21 @@ export class AreaMenu {
       ${playButtons}
       <div class="menu-foot">
         <button type="button" class="text-btn" data-act="report">내 리포트 보기</button>
-        <span class="reset-zone">
+        ${
+          // 시연 모드에서는 누구 진도인지 모르는 채로 지우게 되므로 감춘다.
+          // Progress.clear()가 어차피 막혀 있어, 남겨 두면 눌러도 아무 일이
+          // 없는 버튼이 된다.
+          Progress.isDemo
+            ? ''
+            : `<span class="reset-zone">
           <button type="button" class="text-btn" data-act="reset-ask">진행률 지우기</button>
           <span class="reset-confirm" hidden>
             정말 다 지울까요?
             <button type="button" class="text-btn text-btn--danger" data-act="reset-yes">지우기</button>
             <button type="button" class="text-btn" data-act="reset-cancel">취소</button>
           </span>
-        </span>
+        </span>`
+        }
       </div>
     `;
 
@@ -241,11 +254,4 @@ export class AreaMenu {
     if (confirm !== null) confirm.hidden = true;
     if (ask !== null) ask.hidden = false;
   }
-}
-
-/** 이름은 사용자가 입력한 값이라 그대로 innerHTML에 넣으면 안 된다 */
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
-  );
 }

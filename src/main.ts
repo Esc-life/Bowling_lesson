@@ -11,6 +11,10 @@
  *   ?player=민준  플레이어 선택 화면을 건너뛴다 (수업 시연용)
  *   ?lesson=B3    해당 레슨을 바로 연다 (수업 딥링크)
  *   ?area=D       영역 메뉴를 해당 영역이 강조된 채로 연다
+ *
+ * ?player= 없이 ?lesson=/?area=만 들어오면 시연 모드로 열린다 — 화면은
+ * 다 돌아가지만 진행률을 저장하지 않는다. 누가 보는지 모르는 채로 저장하면
+ * 애먼 학생의 진도가 링크 한 번에 바뀌기 때문이다.
  */
 
 import { Game } from './core/Game';
@@ -25,6 +29,7 @@ import { MatchSetup } from './ui/MatchSetup';
 import { ObserveControls } from './ui/ObserveControls';
 import { PlayerPicker } from './ui/PlayerPicker';
 import { PracticeSetup } from './ui/PracticeSetup';
+import { Progress } from './tutorial/Progress';
 import { Scoreboard } from './ui/Scoreboard';
 import { TutorialUI } from './ui/TutorialUI';
 import type { AreaId } from './tutorial/types';
@@ -124,8 +129,23 @@ async function main(): Promise<void> {
     refresh();
   }
 
-  /** 홈으로 — 진행 중이던 드릴·연습 세션은 여기서 끝난다 */
+  /** 지금 여러 명이 치는 대전이 진행 중인가 */
+  function matchInProgress(): boolean {
+    return practice === null && game.match.isMultiplayer && !game.match.isMatchOver;
+  }
+
+  /**
+   * 홈으로 — 진행 중이던 드릴·연습 세션은 여기서 끝난다.
+   *
+   * 대전 중에 홈으로 나가면 대전도 끝난다. 점수를 들고 있다가 되돌리는
+   * 길은 만들지 않았다(레슨 드릴이 매치를 갈아 끼우므로 범위가 커진다).
+   * 대신 조용히 지우지 않는다 — 홈 버튼이 미리 "대전 그만두기"로 바뀌어
+   * 있고, 나가고 나면 홈 맨 위에 그 사실을 한 줄로 알린다.
+   */
   function openHome(): void {
+    // closeAll()이 드릴 세션을 접으면서 매치를 갈아 끼우므로 먼저 본다
+    const quitMatch = matchInProgress();
+
     // 드릴 세션을 먼저 접는다. openMenu()만으로는 세션이 살아 있어
     // 점수판을 되돌리는 onSessionChange가 발화하지 않는다.
     tutorial.closeAll();
@@ -133,11 +153,12 @@ async function main(): Promise<void> {
     // 연습 투구는 물리 랙만 3개짜리로 바꿔 둔 상태다. 매치를 새로 만들어
     // 되돌리지 않으면, 다음 경기에서 세우지도 않은 핀 7개가 "쓰러졌다"고
     // 세어져 첫 프레임이 스트라이크로 기록된다.
-    // 진행 중인 경기·대전까지 날리지 않도록 연습 중일 때만 되돌린다.
-    if (practice !== null) resetSolo();
+    // 대전은 여기서 끝나므로 함께 혼자 치는 매치로 되돌린다.
+    if (practice !== null || quitMatch) resetSolo();
 
     scoreboard.element.classList.remove('is-hidden');
-    tutorial.openMenu();
+    tutorial.openMenu(undefined, quitMatch ? '대전을 그만뒀어요. 점수는 남지 않아요.' : undefined);
+    refresh();
   }
 
   /** 플레이어를 고른 직후 */
@@ -193,10 +214,29 @@ async function main(): Promise<void> {
   const homeBtn = document.createElement('button');
   homeBtn.type = 'button';
   homeBtn.className = 'text-btn learn-btn';
-  homeBtn.setAttribute('aria-label', '홈으로');
-  homeBtn.innerHTML = '<span aria-hidden="true">🏠</span><span class="btn-label"> 홈</span>';
   homeBtn.addEventListener('click', () => openHome());
   ui.appendChild(homeBtn);
+
+  /**
+   * 홈 버튼의 글자를 지금 상황에 맞춘다.
+   *
+   * 대전 중에는 이 버튼이 대전을 끝낸다. "홈"이라고만 적혀 있으면 잠깐
+   * 나갔다 오는 버튼처럼 보여서, 4명이 치던 판이 예고 없이 사라진다.
+   *
+   * refresh()는 드래그하는 동안에도 계속 불린다. 바뀔 때만 다시 그린다.
+   */
+  let homeBtnQuitting: boolean | null = null;
+  const syncHomeButton = (): void => {
+    const quitting = matchInProgress();
+    if (quitting === homeBtnQuitting) return;
+    homeBtnQuitting = quitting;
+    homeBtn.setAttribute('aria-label', quitting ? '대전 그만두고 홈으로' : '홈으로');
+    homeBtn.classList.toggle('is-quit', quitting);
+    homeBtn.innerHTML = `<span aria-hidden="true">${quitting ? '🚪' : '🏠'}</span><span class="btn-label"> ${
+      quitting ? '대전 그만두기' : '홈'
+    }</span>`;
+  };
+  syncHomeButton();
 
   const refresh = (): void => {
     const machine = game.machine;
@@ -204,11 +244,19 @@ async function main(): Promise<void> {
     hud.setPosition(game.currentBoard);
     hud.setPower(game.input.state.power, game.input.state.active);
     scoreboard.renderMatch(game.match);
+    syncHomeButton();
 
     if (practice !== null) {
       hud.setHint(`연습 중이에요. ${practice.throws}번 던졌어요`);
     } else if (game.match.isMatchOver) {
-      hud.setHint(`게임이 끝났어요! 점수는 ${machine.scorecard.total}점이에요.`);
+      // 다인전이면 이긴 사람 점수를 말한다. 마지막에 던진 사람 점수를
+      // 그대로 쓰면, 배너는 "○○ 승리"인데 아래 한 줄은 딴 사람 점수다.
+      const top = game.match.ranking[0];
+      hud.setHint(
+        game.match.isMultiplayer && top !== undefined
+          ? `게임이 끝났어요! ${top.player.name} 승리, ${top.total}점이에요.`
+          : `게임이 끝났어요! 점수는 ${machine.scorecard.total}점이에요.`,
+      );
     } else if (machine.phase === 'aiming') {
       const who = game.match.isMultiplayer ? `${game.match.active.name}, ` : '';
       hud.setHint(`${who}아래로 끌어당겼다가 놓으면 공이 굴러가요`);
@@ -314,25 +362,46 @@ async function main(): Promise<void> {
   refresh();
   loading.classList.add('is-hidden');
 
-  if (resolved === null) {
+  // ---- 첫 화면 정하기 ----
+
+  // 수업용 딥링크 — 특정 레슨/영역을 바로 연다.
+  const lessonParam = params.get('lesson');
+  const areaParam = params.get('area');
+  const hasDeepLink = lessonParam !== null || areaParam !== null;
+
+  // ?player= 없이 딥링크만 들어오면 누가 보는지 알 수 없다. 그런데
+  // PlayerStore는 저장된 사람이 하나라도 있으면 목록의 첫 사람을 현재로
+  // 잡아 둔다 — "플레이어가 없으니 저장이 버려져 안전하다"는 말은 틀렸다.
+  // 그대로 두면 링크를 여는 것만으로 그 학생의 진도·퀴즈 점수가 바뀌고,
+  // 배우지도 않은 해금이 열린다. 그래서 시연 모드로 열고 저장을 막는다.
+  if (hasDeepLink && resolved === null) {
+    Progress.enterDemoMode();
+    const badge = document.createElement('div');
+    badge.className = 'demo-badge';
+    badge.textContent = '시연 모드 · 배운 기록이 저장되지 않아요';
+    ui.appendChild(badge);
+  }
+
+  if (hasDeepLink) {
+    picker.hide();
+    // 딥링크는 onPlayerReady()를 타지 않는다. 손을 맞추는 resetSolo()를
+    // 여기서 직접 부르지 않으면 레인은 기본 오른손인데 드릴 목표 핀만
+    // 그 학생의 손으로 미러링돼 반쪽만 뒤집힌 화면이 된다.
+    tutorial.reloadProgress();
+    resetSolo();
+    refresh();
+
+    if (lessonParam !== null) {
+      tutorial.openLesson(lessonParam.toUpperCase());
+    } else {
+      const area = (areaParam ?? '').toUpperCase();
+      const isAreaId = (v: string): v is AreaId => ['A', 'B', 'C', 'D', 'E'].includes(v);
+      tutorial.openMenu(isAreaId(area) ? area : undefined);
+    }
+  } else if (resolved === null) {
     picker.show();
   } else {
     onPlayerReady();
-  }
-
-  // 수업용 딥링크 — 특정 레슨/영역을 바로 연다.
-  // 플레이어가 없어도 열려야 한다(수업 시연). 진행률 저장은 현재 플레이어가
-  // 없으면 Progress.save가 조용히 버리므로 안전하다.
-  const lessonParam = params.get('lesson');
-  const areaParam = params.get('area');
-  if (lessonParam !== null) {
-    picker.hide();
-    tutorial.openLesson(lessonParam.toUpperCase());
-  } else if (areaParam !== null) {
-    picker.hide();
-    const area = areaParam.toUpperCase();
-    const isAreaId = (v: string): v is AreaId => ['A', 'B', 'C', 'D', 'E'].includes(v);
-    tutorial.openMenu(isAreaId(area) ? area : undefined);
   }
 
   if (debugMode) {

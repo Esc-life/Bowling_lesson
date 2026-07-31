@@ -12,16 +12,11 @@ import { players } from '../players/PlayerStore';
 import type { Player } from '../players/types';
 import { isGraduated, lessonCount, matchLockReason, MIN_MATCH_PLAYERS } from '../players/unlock';
 import { MAX_PLAYERS, type MatchPlayer } from '../rules/MatchMachine';
+import { escapeHtml } from '../util/html';
 
 export type MatchChoice = { participants: MatchPlayer[]; totalFrames: number };
 
 const FRAME_CHOICES = [3, 5, 10] as const;
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
-  );
-}
 
 export class MatchSetup {
   readonly element: HTMLElement;

@@ -5,8 +5,11 @@
  * 쓰는데 손 설정과 진도가 전역이면 서로 계속 덮어쓴다.
  *
  * 옛 버전은 진행률을 기기당 하나(bowling3d.progress.v1)로 저장했다.
- * 그 데이터가 남아 있으면 첫 플레이어를 만들 때 그대로 물려주고 옛 키를
- * 지운다. 쓰던 학생이 진도를 잃지 않아야 한다.
+ * 그 데이터가 남아 있으면 첫 플레이어를 만들 때 진행률을 그대로 물려주고
+ * 옛 키를 지운다. 쓰던 학생이 진도를 잃지 않아야 한다.
+ *
+ * 손은 물려받지 않는다. 만들기 화면에서 방금 고른 손이 언제나 이긴다.
+ * 옛 값은 그 화면의 초기 선택(pendingHandedness)으로만 쓴다.
  */
 
 import type { Handedness } from '../rules/pinLayout';
@@ -61,7 +64,12 @@ function browserStorage(): StorageLike {
 function isProgressState(v: unknown): v is ProgressState {
   if (typeof v !== 'object' || v === null) return false;
   const o = v as Record<string, unknown>;
-  return Array.isArray(o['completedLessons']) && typeof o['quizScores'] === 'object';
+  // quizScores의 null을 반드시 걸러야 한다. typeof null이 'object'라
+  // 그냥 통과시키면 TutorialFlow의 Object.entries(null)에서 터지고,
+  // 그건 앱이 아예 뜨지 않는다는 뜻이다.
+  const scores = o['quizScores'];
+  if (typeof scores !== 'object' || scores === null) return false;
+  return Array.isArray(o['completedLessons']);
 }
 
 function sanitizePlayer(v: unknown): Player | null {
@@ -112,6 +120,16 @@ export class PlayerStore {
     return this.legacy !== null;
   }
 
+  /**
+   * 옛 설정에 저장돼 있던 손. 이관할 것이 없거나 옛 설정이 깨졌으면 null.
+   *
+   * 만들기 화면의 손 버튼을 어느 쪽으로 켜 둘지 정하는 데만 쓴다.
+   * 강제하지 않는다 — 최종 결정은 화면에서 고른 값이다.
+   */
+  get pendingHandedness(): Handedness | null {
+    return this.legacy?.handedness ?? null;
+  }
+
   select(id: string): void {
     if (!this.list.some((p) => p.id === id)) {
       throw new Error(`없는 플레이어입니다: ${id}`);
@@ -124,13 +142,15 @@ export class PlayerStore {
     const check = checkName(rawName, this.list);
     if (!check.ok) throw new Error(check.reason);
 
-    // 옛 데이터를 물려받는다. 손도 옛 설정이 있으면 그쪽을 믿는다 —
-    // 지금까지 그 설정으로 배워 왔기 때문이다.
+    // 옛 진행률은 물려받는다. 손은 물려받지 않는다 — 방금 화면에서 고른
+    // 값이 언제나 이긴다. 옛 값이 이기면, 왼손 학생이 왼손을 눌러도
+    // 오른손으로 굳어 버리고 손을 바꾸는 화면이 없어 되돌릴 수가 없다.
+    // 옛 손은 pendingHandedness로 노출해 만들기 화면의 초기 선택에만 쓴다.
     const inherited = this.legacy;
     const player: Player = {
       id: newId(),
       name: check.name,
-      handedness: inherited?.handedness ?? handedness,
+      handedness,
       progress: inherited?.progress ?? emptyProgress(),
       createdAt: Date.now(),
     };
@@ -218,7 +238,7 @@ export class PlayerStore {
         const h = s['handedness'];
         if (h === 'left' || h === 'right') handedness = h;
       } catch {
-        /* 설정이 깨졌으면 손은 화면에서 고른 값을 쓴다 */
+        /* 설정이 깨졌으면 초기 선택 없이 기본값(오른손)으로 연다 */
       }
     }
 

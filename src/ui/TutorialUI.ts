@@ -14,6 +14,7 @@
 import type { Game } from '../core/Game';
 import { players } from '../players/PlayerStore';
 import type { ThrowResult } from '../rules/FrameMachine';
+import { soloMatch } from '../rules/MatchMachine';
 import type { Handedness } from '../rules/pinLayout';
 import { settings } from '../settings';
 import { DrillRunner } from '../tutorial/DrillRunner';
@@ -72,7 +73,12 @@ export class TutorialUI {
         this.abandonSession();
         this.openMenu();
       },
-      onClose: () => this.closeAll(),
+      // 레슨 패널의 ✕는 홈으로 돌아간다. 게임 화면으로 빠져나가면
+      // 자유 연습·대전 잠금을 건너뛰는 뒷문이 된다.
+      onClose: () => {
+        this.abandonSession();
+        this.openMenu();
+      },
       onNext: () => this.goNext(),
       onComplete: (score?: QuizScore) => this.markComplete(score),
       onStartDrill: (drill) => this.startDrill(drill),
@@ -81,7 +87,6 @@ export class TutorialUI {
 
     this.menu = new AreaMenu({
       onOpenLesson: (id) => this.openLesson(id),
-      onClose: () => this.closeAll(),
       onReport: () => {
         this.menu.hide();
         this.report.show(this.flow);
@@ -149,10 +154,14 @@ export class TutorialUI {
     this.panel.setHand(this.hand);
   }
 
-  openMenu(focusArea?: AreaId): void {
+  /**
+   * 홈(영역 메뉴)을 연다.
+   * @param notice 홈 맨 위에 한 줄 알릴 말 (예: 대전을 그만뒀다는 안내)
+   */
+  openMenu(focusArea?: AreaId, notice?: string): void {
     this.panel.hide();
     this.report.hide();
-    this.menu.show(this.flow, focusArea);
+    this.menu.show(this.flow, focusArea, notice);
   }
 
   openLesson(lessonId: string): void {
@@ -229,8 +238,8 @@ export class TutorialUI {
     this.showBar();
     this.hooks.onSessionChange?.({ active: true, hideScoreboard: runner.freshRackEachThrow });
 
-    // restart → beginAiming → onReady → handleReady()가 드릴 핀을 세운다
-    this.game.restart();
+    // setMatch → beginAiming → onReady → handleReady()가 드릴 핀을 세운다
+    this.beginOwnMatch();
     this.updateBar(null);
   }
 
@@ -245,8 +254,22 @@ export class TutorialUI {
     this.menu.hide();
     this.showBar();
     this.hooks.onSessionChange?.({ active: true, hideScoreboard: false });
-    this.game.restart();
+    this.beginOwnMatch();
     this.updateBar(null);
+  }
+
+  /**
+   * 드릴·관찰이 쓸 매치를 지금 배우는 사람 기준으로 새로 만든다.
+   *
+   * game.restart()를 쓰면 안 된다. 그건 화면에 올라와 있던 매치를 그대로
+   * 이어 쓰는데, 대전 중이었다면 친구들이 치던 점수를 통째로 지우고,
+   * 게다가 reset() 뒤의 차례는 언제나 참가자[0]이라 레인·화살표는 A의 손,
+   * 드릴 목표 핀은 B의 손으로 갈려 미러링이 반쪽만 걸린다.
+   *
+   * 드릴이 제 매치를 들고 있으면 손은 늘 players.current 기준이 된다.
+   */
+  private beginOwnMatch(): void {
+    this.game.setMatch(soloMatch(players.current?.name ?? '나', 10, this.hand));
   }
 
   /** 조준 상태가 될 때마다 (Game.onReady) — 드릴 핀을 다시 세운다 */
@@ -337,7 +360,9 @@ export class TutorialUI {
     this.session = null;
     this.bar.hidden = true;
     this.hooks.onSessionChange?.({ active: false, hideScoreboard: false });
-    this.game.restart();
+    // 드릴이 남겨 둔 반쪽 랙을 치우고 다시 10개를 세운다. 여기서도 자기
+    // 매치를 쓴다 — 손이 어긋나는 경로를 하나도 남기지 않는다.
+    this.beginOwnMatch();
 
     const lessonId = s?.lessonId ?? this.currentLessonId;
     const found = lessonId === null ? null : findLesson(lessonId);
@@ -365,7 +390,7 @@ export class TutorialUI {
     this.session = null;
     this.bar.hidden = true;
     this.hooks.onSessionChange?.({ active: false, hideScoreboard: false });
-    this.game.restart();
+    this.beginOwnMatch();
   }
 
   private demoThrow(spin: number): void {

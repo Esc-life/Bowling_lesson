@@ -1566,3 +1566,40 @@ button:disabled {
   25% { transform: translateX(-4px); }
   75% { transform: translateX(4px); }
 }
+
+/* 홈 맨 위 한 줄 알림 — 지금은 "대전을 그만뒀어요"에 쓴다.
+   방금 무슨 일이 있었는지 알려 주는 자리라 눈에 띄어야 하지만,
+   경고는 아니므로 danger 색은 쓰지 않는다. */
+.menu-notice {
+  margin-bottom: 0.7rem;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(224, 169, 76, 0.18);
+  border: 2px solid var(--lane-gold);
+  color: var(--ink-paper);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 대전 중에는 홈 버튼이 대전을 끝낸다 — 색으로도 다르다고 알린다 */
+.learn-btn.is-quit {
+  background: var(--pin-red-deep);
+  color: var(--ink-hud);
+}
+
+/* 시연 모드 배지 — ?player= 없이 딥링크로 들어왔을 때만 붙는다.
+   오버레이(튜토리얼 패널)보다 위에 있어야 레슨 화면에서도 보인다. */
+.demo-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink-hud);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}

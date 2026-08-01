@@ -26,6 +26,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # 온라인 대전(Supabase Realtime)용. Settings > Secrets and variables > Actions에서
+          # 등록해야 한다 — 없으면 빈 값으로 빌드되고, 온라인 대전 버튼을 누르는 순간에만
+          # "설정할 수 없어요" 안내가 뜬다(src/net/supabaseClient.ts가 그렇게 처리한다).
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -17,6 +17,8 @@
  * 애먼 학생의 진도가 링크 한 번에 바뀌기 때문이다.
  */
 
+import { OnlineMatchController } from './net/OnlineMatchController';
+import type { RoomChannel } from './net/RoomChannel';
 import { players } from './players/PlayerStore';
 import { PracticeSession } from './practice/PracticeSession';
 import { MatchMachine, soloMatch, type MatchPlayer, type MatchThrowResult } from './rules/MatchMachine';
@@ -26,6 +28,7 @@ import { DebugPanel } from './ui/DebugPanel';
 import { Hud } from './ui/Hud';
 import { MatchSetup } from './ui/MatchSetup';
 import { ObserveControls } from './ui/ObserveControls';
+import { OnlineMatchSetup, type OnlineMatchStart } from './ui/OnlineMatchSetup';
 import { PlayerPicker } from './ui/PlayerPicker';
 import { PracticeSetup } from './ui/PracticeSetup';
 import { Progress } from './tutorial/Progress';
@@ -81,6 +84,22 @@ async function main(): Promise<void> {
   /** 연습 투구 중이면 그 세션. 정식 경기·대전 중에는 null */
   let practice: PracticeSession | null = null;
 
+  /** 온라인 대전 중이면 방 연결과 동기화 컨트롤러. 아니면 둘 다 null */
+  let onlineRoom: RoomChannel | null = null;
+  let onlineController: OnlineMatchController | null = null;
+
+  /**
+   * 온라인 대전에서 빠져나온다 (홈으로 나가거나, 자유 연습·같은 기기
+   * 대전으로 넘어가거나). 방을 정리하지 않으면 남의 굴림이 계속 들어와
+   * 다음 로컬 경기를 건드리고, aimGate도 "내 차례일 때만"에 걸린 채로 남는다.
+   */
+  function leaveOnlineMatch(): void {
+    onlineController?.dispose();
+    onlineController = null;
+    onlineRoom?.leave();
+    onlineRoom = null;
+  }
+
   // 서로를 콜백 안에서 참조하므로 먼저 이름만 만들어 둔다.
   // 실제로 불리는 시점에는 이미 대입돼 있다.
   let tutorial: TutorialUI;
@@ -102,6 +121,7 @@ async function main(): Promise<void> {
    * 플레이어를 고른 직후에도 한 번 불러 손을 맞춘다.
    */
   function resetSolo(): void {
+    leaveOnlineMatch();
     practice = null;
     const me = players.current;
     game.setMatch(soloMatch(me?.name ?? '나', 10, me?.handedness ?? 'right'));
@@ -124,12 +144,32 @@ async function main(): Promise<void> {
     refresh();
   }
 
-  /** 여러 명이 번갈아 치는 대전 */
+  /** 여러 명이 번갈아 치는 대전 (같은 기기) */
   function startMatch(participants: MatchPlayer[], totalFrames: number): void {
+    leaveOnlineMatch();
     practice = null;
     game.setMatch(new MatchMachine(participants, totalFrames));
     scoreboard.element.classList.remove('is-hidden');
     hud.showBanner(`${game.match.active.name} 차례`);
+    refresh();
+  }
+
+  /** 다른 기기에 있는 사람과 방 코드로 겨루는 대전 */
+  function startOnlineMatch(start: OnlineMatchStart): void {
+    leaveOnlineMatch();
+    practice = null;
+    onlineRoom = start.room;
+    onlineController = new OnlineMatchController(
+      game,
+      start.room,
+      start.selfId,
+      start.participants,
+      start.totalFrames,
+    );
+    scoreboard.element.classList.remove('is-hidden');
+    hud.showBanner(
+      game.match.active.id === start.selfId ? '이제 내 차례예요' : `${game.match.active.name} 차례예요`,
+    );
     refresh();
   }
 
@@ -175,6 +215,9 @@ async function main(): Promise<void> {
     // 세어져 첫 프레임이 스트라이크로 기록된다.
     // 대전은 여기서 끝나므로 함께 혼자 치는 매치로 되돌린다.
     if (practice !== null || quitMatch) resetSolo();
+    // 온라인 대전이 끝난 뒤(quitMatch가 아니라 정상 종료로) 홈에 왔을 때도
+    // 방 연결을 정리한다 — resetSolo()가 안 불렸다고 웹소켓을 열어 둘 이유는 없다.
+    else leaveOnlineMatch();
 
     scoreboard.element.classList.remove('is-hidden');
     tutorial.openMenu(undefined, quitMatch ? '대전을 그만뒀어요. 점수는 남지 않아요.' : undefined);
@@ -218,8 +261,16 @@ async function main(): Promise<void> {
       openHome();
     },
   );
+  const onlineMatchSetup = new OnlineMatchSetup(
+    (start) => startOnlineMatch(start),
+    () => {
+      onlineMatchSetup.hide();
+      openHome();
+    },
+  );
   ui.appendChild(practiceSetup.element);
   ui.appendChild(matchSetup.element);
+  ui.appendChild(onlineMatchSetup.element);
 
   tutorial = new TutorialUI(game, ui, {
     onSessionChange: ({ hideScoreboard }) => {
@@ -228,6 +279,7 @@ async function main(): Promise<void> {
     },
     onFreePractice: () => practiceSetup.show(),
     onMatch: () => matchSetup.show(),
+    onOnlineMatch: () => onlineMatchSetup.show(),
     onSwitchPlayer: () => picker.show(),
     onResumeGame: () => {
       scoreboard.element.classList.remove('is-hidden');

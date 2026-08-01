@@ -1624,6 +1624,25 @@ button:disabled {
 }
 .frame-choice.is-on { background: #f2f2f2; color: #1a1a1a; }
 
+/* ---------------------------------------------------------------- 온라인 대전 — 방 코드·로비 */
+
+.room-code {
+  margin: 0.6rem 0; padding: 0.7rem; border-radius: 0.8rem; text-align: center;
+  font-size: 2.2rem; font-weight: 800; letter-spacing: 0.35em; text-indent: 0.35em;
+  background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.room-code-input {
+  text-transform: uppercase; letter-spacing: 0.3em; font-size: 1.3rem; text-align: center;
+}
+.lobby-list { display: grid; gap: 0.4rem; margin: 0.6rem 0; }
+.lobby-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.5rem 0.8rem; border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.lobby-row--me { border-color: var(--lane-gold); }
+.lobby-you { font-size: 0.75rem; opacity: 0.75; }
+
 /* ---------------------------------------------------------------- 홈 — 플레이어 줄과 잠금 */
 
 /* .play-buttons / .play-btn 계열은 위(자유 연습·대전 시작)에서 이미 정의했다.

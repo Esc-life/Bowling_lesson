@@ -33,6 +33,8 @@ export type TutorialHooks = {
   onFreePractice: () => void;
   /** 홈에서 대전을 골랐을 때 */
   onMatch: () => void;
+  /** 홈에서 온라인 대전을 골랐을 때 */
+  onOnlineMatch: () => void;
   /** 홈에서 플레이어 바꾸기를 골랐을 때 */
   onSwitchPlayer: () => void;
   /** 홈에서 "치던 경기로 돌아가기"를 골랐을 때 */
@@ -123,6 +125,10 @@ export class TutorialUI {
       onMatch: () => {
         this.closeAll();
         this.hooks.onMatch();
+      },
+      onOnlineMatch: () => {
+        this.closeAll();
+        this.hooks.onOnlineMatch();
       },
       onSwitchPlayer: () => {
         this.closeAll();

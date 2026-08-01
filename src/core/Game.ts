@@ -34,6 +34,12 @@ export type GameEvents = {
   onReady: () => void;
   /** 상태 표시가 바뀔 때마다 (프레임/파워/위치) */
   onStateChanged: () => void;
+  /**
+   * 내 물리 시뮬레이션이 실제로 굴림 하나를 정지시켰을 때 (온라인 대전 전용).
+   * `applyRemoteThrow()`로 반영한 굴림에는 발화하지 않는다 — 남에게서 받은
+   * 결과를 다시 방송하면 무한 루프가 된다.
+   */
+  onLocalRoll: (remaining: PinNumber[], playerId: string) => void;
 };
 
 /** 서는 위치를 버튼 한 번에 옮기는 폭 (m) — 보드 2장쯤 */
@@ -73,7 +79,14 @@ export class Game {
     onThrowResolved: () => {},
     onReady: () => {},
     onStateChanged: () => {},
+    onLocalRoll: () => {},
   };
+
+  /**
+   * 지금 조준을 시작해도 되는가. 온라인 대전에서 내 차례가 아니면 여기서
+   * 막는다. 로컬 전용 모드(같은 기기 대전·자유 연습·드릴)는 항상 true다.
+   */
+  private canAim: () => boolean = () => true;
 
   private constructor(container: HTMLElement, physics: PhysicsWorld) {
     this.hand = this._match.active.handedness;
@@ -159,6 +172,12 @@ export class Game {
     this.syncMeshes();
   }
 
+  /** 온라인 대전 전용 — 지금 조준해도 되는지 판정하는 함수를 갈아 끼운다 */
+  setAimGate(canAim: () => boolean): void {
+    this.canAim = canAim;
+    this.events.onStateChanged();
+  }
+
   // -------------------------------------------------------------------------
   // 설정 반영
   // -------------------------------------------------------------------------
@@ -193,7 +212,7 @@ export class Game {
     this.watcher.reset();
     this.physics.resetAccumulator();
     this.input.reset();
-    this.input.enabled = true;
+    this.input.enabled = this.canAim();
     this.camera.setMode('aim');
     this.syncMeshes();
     this.events.onReady();
@@ -253,6 +272,36 @@ export class Game {
     }
     this.events.onThrowResolved(result);
     this.beginAiming();
+  }
+
+  /**
+   * 온라인 대전에서 상대가 던진 결과를 반영한다 (온라인 대전 전용).
+   *
+   * 상대의 물리를 이 기기에서 재현하지 않는다 — `remaining`(굴림 뒤 남은 핀)은
+   * 상대 기기의 물리가 이미 확정한 값을 그대로 받은 것이다. 공이 굴러가는
+   * 과정 없이 핀이 곧장 그 결과로 바뀌고, 배너·차례 안내는
+   * `onThrowResolved`를 그대로 타므로 로컬 대전과 문구가 같다.
+   */
+  applyRemoteThrow(remaining: readonly PinNumber[]): MatchThrowResult {
+    this._match.throwBall();
+    const result = this._match.settle(remaining);
+
+    if (result.turnChanged && !result.matchOver) {
+      this.setHandedness(this._match.active.handedness);
+    }
+
+    // 굴러가는 연출 없이 결과만 즉시 보여준다 — 던진 사람 화면의 '결과 표시' 순간과 같다
+    this.bodies.setPins(remaining);
+    this.syncMeshes();
+    this.camera.setMode('result');
+    this.events.onThrowResolved(result);
+
+    window.setTimeout(() => {
+      if (!this.machine.isGameOver) this.beginAiming();
+      else this.events.onStateChanged();
+    }, 1400);
+
+    return result;
   }
 
   /**
@@ -341,7 +390,10 @@ export class Game {
     if (status !== 'settled') return;
 
     const remaining = standingPins(this.bodies, this.machine.standingPins);
+    // 던진 사람 — settle()이 차례를 넘기기 전에 잡아 둔다
+    const throwerId = this._match.active.id;
     const result = this._match.settle(remaining);
+    this.events.onLocalRoll(remaining, throwerId);
 
     // 차례가 넘어갔으면 다음 사람의 손으로 레인 표시를 바꾼다
     if (result.turnChanged && !result.matchOver) {

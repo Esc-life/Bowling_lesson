@@ -33,6 +33,8 @@ export type AreaMenuCallbacks = {
   onFreePractice: () => void;
   /** 대전 참가자 고르기로 (해금 여부는 다음 화면에서 판정한다) */
   onMatch: () => void;
+  /** 온라인 대전 방 만들기/참가하기로 (해금 여부는 같은 규칙을 여기서 먼저 본다) */
+  onOnlineMatch: () => void;
   /** 플레이어 바꾸기 */
   onSwitchPlayer: () => void;
   /** 치던 10프레임 경기로 그대로 돌아가기 (resumeGame이 있을 때만 불린다) */
@@ -64,7 +66,7 @@ export class AreaMenu {
 
       const act = target.dataset['act'];
 
-      if (act === 'free-practice' || act === 'match') {
+      if (act === 'free-practice' || act === 'match' || act === 'online-match') {
         const lock = target.dataset['lock'];
         if (lock !== undefined) {
           // 잠긴 이유를 그 자리에서 보여 준다. 감추면 있는 줄도 모른다.
@@ -72,7 +74,8 @@ export class AreaMenu {
           return;
         }
         if (act === 'free-practice') this.callbacks.onFreePractice();
-        else this.callbacks.onMatch();
+        else if (act === 'match') this.callbacks.onMatch();
+        else this.callbacks.onOnlineMatch();
         return;
       }
 
@@ -194,6 +197,13 @@ export class AreaMenu {
           <span class="play-icon" aria-hidden="true">${practiceLock === null ? '🏆' : '🔒'}</span>
           <span class="play-name">대전</span>
           <span class="play-desc">${practiceLock === null ? '친구와 번갈아 쳐요' : '다 배우면 친구와 겨룰 수 있어요'}</span>
+        </button>
+        <button type="button" class="play-btn${practiceLock === null ? '' : ' is-locked'}"
+                data-act="online-match"
+                ${practiceLock === null ? '' : `data-lock="${escapeHtml(practiceLock)}"`}>
+          <span class="play-icon" aria-hidden="true">${practiceLock === null ? '🌐' : '🔒'}</span>
+          <span class="play-name">온라인 대전</span>
+          <span class="play-desc">${practiceLock === null ? '다른 기기의 친구와 방 코드로 겨뤄요' : '다 배우면 온라인으로도 겨룰 수 있어요'}</span>
         </button>
       </div>
     `;

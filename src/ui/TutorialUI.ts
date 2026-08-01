@@ -62,6 +62,8 @@ export class TutorialUI {
   private readonly menu: AreaMenu;
   private readonly report: ReportScreen;
   private readonly bar: HTMLElement;
+  private readonly barToggle: HTMLButtonElement;
+  private readonly barBody: HTMLElement;
 
   private currentLessonId: string | null = null;
   private session: DrillSession | ObserveSession | null = null;
@@ -153,7 +155,24 @@ export class TutorialUI {
       if (act === 'quit') this.quitSession();
       if (act === 'demo-straight') this.demoThrow(0);
       if (act === 'demo-hook') this.demoThrow(this.hand === 'right' ? 12 : -12);
+      if (act === 'toggle-bar') this.toggleBarCollapsed();
     });
+
+    // 좁은 화면에서 드릴 안내가 경기 장면을 가리는 것을 막기 위해 접을 수
+    // 있게 한다. updateBar()는 barBody의 내용만 갈아 끼우므로 접기 상태는
+    // 다시 그려도 안 풀린다.
+    this.barToggle = document.createElement('button');
+    this.barToggle.type = 'button';
+    this.barToggle.className = 'panel-toggle';
+    this.barToggle.dataset['act'] = 'toggle-bar';
+    this.barToggle.setAttribute('aria-expanded', 'true');
+    this.barToggle.setAttribute('aria-label', '드릴 안내 접기');
+    this.barToggle.textContent = '▾';
+
+    this.barBody = document.createElement('div');
+    this.barBody.className = 'drill-bar-body';
+
+    this.bar.append(this.barToggle, this.barBody);
 
     container.appendChild(this.panel.element);
     container.appendChild(this.menu.element);
@@ -462,6 +481,17 @@ export class TutorialUI {
 
   private showBar(): void {
     this.bar.hidden = false;
+    // 새 드릴/관찰은 항상 펼쳐진 채로 시작한다 — 안내 목표를 놓치지 않게.
+    this.bar.classList.remove('is-collapsed');
+    this.barToggle.textContent = '▾';
+    this.barToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  private toggleBarCollapsed(): void {
+    const collapsed = this.bar.classList.toggle('is-collapsed');
+    this.barToggle.textContent = collapsed ? '▸' : '▾';
+    this.barToggle.setAttribute('aria-expanded', String(!collapsed));
+    this.barToggle.setAttribute('aria-label', collapsed ? '드릴 안내 펼치기' : '드릴 안내 접기');
   }
 
   private updateBar(message: string | null): void {
@@ -469,7 +499,7 @@ export class TutorialUI {
     if (s === null) return;
 
     if (s.kind === 'observe') {
-      this.bar.innerHTML = `
+      this.barBody.innerHTML = `
         <div class="drill-bar-goal">👀 공이 굴러간 길을 봐요 (${s.count} / ${s.times})</div>
         <div class="drill-bar-msg">${message ?? '아래 버튼으로 굴리거나 직접 드래그해 봐요.'}</div>
         <div class="drill-bar-actions">
@@ -486,7 +516,7 @@ export class TutorialUI {
       ? `지금 ${this.game.machine.scorecard.total}점 · ${runner.attemptsUsed}번 던졌어요`
       : `성공 ${runner.successes} / ${runner.target} · 기회 ${runner.attemptsMax - runner.attemptsUsed}번 남음`;
 
-    this.bar.innerHTML = `
+    this.barBody.innerHTML = `
       <div class="drill-bar-goal">🎯 ${runner.goalLabel}</div>
       <div class="drill-bar-progress">${progress}</div>
       <div class="drill-bar-msg">${message ?? runner.hint ?? ''}</div>

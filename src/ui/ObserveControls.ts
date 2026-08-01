@@ -17,6 +17,8 @@ export type ObserveState = {
 
 export class ObserveControls {
   readonly element: HTMLElement;
+  private readonly body: HTMLElement;
+  private readonly toggle: HTMLButtonElement;
 
   private rateIndex = 0;
   private paused = false;
@@ -27,13 +29,28 @@ export class ObserveControls {
 
     this.element = document.createElement('div');
     this.element.className = 'observe';
-    this.element.innerHTML = `
+
+    // 좁은 화면에서 이 설정 박스가 경기 장면을 가리는 것을 막기 위해
+    // 접을 수 있게 한다 — Scoreboard와 같은 .panel-toggle 패턴.
+    this.toggle = document.createElement('button');
+    this.toggle.type = 'button';
+    this.toggle.className = 'panel-toggle';
+    this.toggle.setAttribute('aria-expanded', 'true');
+    this.toggle.setAttribute('aria-label', '관찰 모드 접기');
+    this.toggle.textContent = '▾';
+    this.toggle.addEventListener('click', () => this.toggleCollapsed());
+
+    this.body = document.createElement('div');
+    this.body.className = 'observe-body';
+    this.body.innerHTML = `
       <button type="button" class="obs-btn" data-act="speed">속도 1x</button>
       <button type="button" class="obs-btn" data-act="pause">일시정지</button>
       <label class="obs-toggle"><input type="checkbox" data-toggle="trajectory"> 공이 간 길</label>
       <label class="obs-toggle"><input type="checkbox" data-toggle="oil"> 기름칠한 곳</label>
       <label class="obs-toggle"><input type="checkbox" data-toggle="numbers"> 핀 번호</label>
     `;
+
+    this.element.append(this.toggle, this.body);
 
     this.element.addEventListener('click', (e) => {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset['act'];
@@ -59,6 +76,13 @@ export class ObserveControls {
     });
 
     this.syncToggles();
+  }
+
+  private toggleCollapsed(): void {
+    const collapsed = this.element.classList.toggle('is-collapsed');
+    this.toggle.textContent = collapsed ? '▸' : '▾';
+    this.toggle.setAttribute('aria-expanded', String(!collapsed));
+    this.toggle.setAttribute('aria-label', collapsed ? '관찰 모드 펼치기' : '관찰 모드 접기');
   }
 
   /** 설정이 밖에서 바뀌었을 때 체크박스를 맞춘다 (튜토리얼이 자동으로 켠다) */

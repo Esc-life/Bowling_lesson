@@ -67,6 +67,8 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
   background: var(--stage);
   color: var(--ink);
   font-family: var(--font);
@@ -77,6 +79,7 @@ body {
 #stage {
   position: absolute;
   inset: 0;
+  touch-action: none;
 }
 
 #ui {
@@ -352,6 +355,17 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* display: contents — 이 래퍼가 없는 것처럼 자식(.frames, .total, .match-row)이
+   .scoreboard의 직속 flex 아이템이 된다. 그래서 아래 기존 .scoreboard 레이아웃
+   규칙을 하나도 안 바꿔도 된다. 접힐 때만 진짜 display:none으로 바뀐다. */
+.scoreboard-body {
+  display: contents;
+}
+
+.scoreboard.is-collapsed .scoreboard-body {
+  display: none;
+}
+
 .scoreboard .frames {
   display: flex;
   gap: 2px;
@@ -442,6 +456,43 @@ button:disabled {
   transform: none;
 }
 
+/* 다이어그램 안 점수판(수업 설명용 그림)에는 접기 버튼이 필요 없다 */
+.scoreboard--compact .panel-toggle {
+  display: none;
+}
+
+/* HUD 패널(점수판·관찰 모드·드릴 안내 바) 접기/펼치기 버튼 — 좁은 화면에서
+   패널이 경기 장면을 가릴 때 접어서 뒤쪽 3D 장면이 보이게 한다. */
+.panel-toggle {
+  flex: none;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-hud);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.panel-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: none;
+  box-shadow: none;
+}
+
+.panel-toggle:active {
+  transform: none;
+  box-shadow: none;
+}
+
 /* 종이(밝은) 패널 안에 점수판 다이어그램이 들어갈 때는 색을 뒤집는다 */
 .diagram--scorecard .scoreboard {
   color: var(--ink-hud);
@@ -462,6 +513,16 @@ button:disabled {
   border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 12px;
   border-radius: var(--radius-sm);
+}
+
+/* display: contents — 아래 .observe 레이아웃(세로/가로 반응형)을 그대로 두고
+   토글 버튼만 실제 flex 아이템으로 얹는다. */
+.observe-body {
+  display: contents;
+}
+
+.observe.is-collapsed .observe-body {
+  display: none;
 }
 
 .obs-btn {
@@ -616,15 +677,18 @@ button:disabled {
   padding: 24px 28px;
   min-height: 0;
   font-size: 18px;
-  color: var(--ink-hud);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.18);
+  /* 이 버튼은 항상 크림색 종이 패널(.overlay .panel) 위에서만 쓰인다 —
+     HUD용 밝은 글자색(--ink-hud)을 쓰면 비슷한 밝은 배경 위에서 안 보인다
+     (실기에서 확인된 문제). 종이용 어두운 글자색을 직접 쓴다. */
+  color: var(--ink-paper);
+  background: rgba(42, 32, 22, 0.05);
+  border-color: rgba(42, 32, 22, 0.18);
   box-shadow: none;
   opacity: 0.7;
 }
 
 .hand-choice:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(42, 32, 22, 0.1);
   opacity: 0.85;
 }
 
@@ -1207,6 +1271,16 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* display: contents — 위 .drill-bar 세로 배치를 그대로 두고 토글 버튼만
+   실제 flex 아이템으로 얹는다(맨 위 가운데 손잡이처럼 보인다). */
+.drill-bar-body {
+  display: contents;
+}
+
+.drill-bar.is-collapsed .drill-bar-body {
+  display: none;
 }
 
 .drill-bar-goal {

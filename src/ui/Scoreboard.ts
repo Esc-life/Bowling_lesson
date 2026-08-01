@@ -37,16 +37,41 @@ function rollSymbol(frame: FrameView, index: number, totalFrames: number): strin
 
 export class Scoreboard {
   readonly element: HTMLElement;
+  private readonly body: HTMLElement;
+  private readonly toggle: HTMLButtonElement;
   /** renderMatch()가 매 프레임(드래그 중에도) 불리므로, 차례가 바뀔 때만 스크롤한다 */
   private lastActivePlayerId: string | null = null;
 
   constructor(options: ScoreboardOptions = {}) {
     this.element = document.createElement('div');
     this.element.className = options.compact === true ? 'scoreboard scoreboard--compact' : 'scoreboard';
+
+    // 좁은 화면에서는 점수판이 경기 장면을 많이 가린다 — 접어서 화면을
+    // 넓게 볼 수 있게 한다. toggle은 한 번만 만들고 render()/renderMatch()는
+    // body의 내용만 갈아 끼운다(그래야 다시 그릴 때마다 접기 상태가 안 풀린다).
+    this.toggle = document.createElement('button');
+    this.toggle.type = 'button';
+    this.toggle.className = 'panel-toggle';
+    this.toggle.setAttribute('aria-expanded', 'true');
+    this.toggle.setAttribute('aria-label', '점수판 접기');
+    this.toggle.textContent = '▾';
+    this.toggle.addEventListener('click', () => this.toggleCollapsed());
+
+    this.body = document.createElement('div');
+    this.body.className = 'scoreboard-body';
+
+    this.element.append(this.toggle, this.body);
+  }
+
+  private toggleCollapsed(): void {
+    const collapsed = this.element.classList.toggle('is-collapsed');
+    this.toggle.textContent = collapsed ? '▸' : '▾';
+    this.toggle.setAttribute('aria-expanded', String(!collapsed));
+    this.toggle.setAttribute('aria-label', collapsed ? '점수판 펼치기' : '점수판 접기');
   }
 
   render(card: Scorecard, options: ScoreboardOptions = {}): void {
-    this.element.innerHTML = this.rowHtml(card, options);
+    this.body.innerHTML = this.rowHtml(card, options);
   }
 
   /**
@@ -80,13 +105,13 @@ export class Scoreboard {
       `;
     });
 
-    this.element.innerHTML = rows.join('');
+    this.body.innerHTML = rows.join('');
 
     // 차례가 바뀐 순간에만 스크롤한다 — 매 프레임 부르면(드래그 중에도
     // renderMatch가 계속 불린다) 사용자가 손으로 미는 스크롤과 싸우게 된다.
     if (match.active.id !== this.lastActivePlayerId) {
       this.lastActivePlayerId = match.active.id;
-      this.element.querySelector('.match-row--active')?.scrollIntoView({ block: 'nearest' });
+      this.body.querySelector('.match-row--active')?.scrollIntoView({ block: 'nearest' });
     }
   }
 

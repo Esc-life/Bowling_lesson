@@ -80,9 +80,14 @@ export class CameraRig {
           look: new THREE.Vector3(ball.x * 0.5, 0.2, ball.z + 4.5),
         };
       case 'pindeck':
+        // follow에서 컷할 때 x=0으로 완전히 고정하면, 회전이 강해 공이
+        // 레인 옆쪽으로 많이 흘러간 상태에서 컷될 때 프레임 안에서 공이
+        // 크게 옆으로 튀는 것처럼 보인다("점프"). 공의 실제 x를 일부만
+        // 반영해 컷 폭을 줄인다 (follow의 0.8보다 훨씬 약하게 — 완전히
+        // 따라가면 다시 "핀 쪽으로 순간이동" 문제가 재현된다).
         return {
-          position: new THREE.Vector3(0, 1.5, LANE.headPinZ + 3.4),
-          look: new THREE.Vector3(0, 0.25, LANE.headPinZ + 0.2),
+          position: new THREE.Vector3(ball.x * 0.25, 1.5, LANE.headPinZ + 3.4),
+          look: new THREE.Vector3(ball.x * 0.15, 0.25, LANE.headPinZ + 0.2),
         };
       case 'result':
         return {

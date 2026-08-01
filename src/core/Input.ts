@@ -59,6 +59,9 @@ export class DragInput {
   private readonly handlers: { type: string; fn: (e: Event) => void }[] = [];
 
   constructor(private readonly element: HTMLElement) {
+    // { passive: false } + preventDefault: 캔버스 위 드래그가 브라우저의
+    // 터치 스크롤/풀투리프레시로 새는 것을 막는다. CSS의 touch-action: none
+    // (SceneSetup.ts)만으로는 일부 모바일 브라우저에서 충분하지 않았다.
     this.bind('pointerdown', (e) => this.onDown(e as PointerEvent));
     this.bind('pointermove', (e) => this.onMove(e as PointerEvent));
     this.bind('pointerup', (e) => this.onUp(e as PointerEvent));
@@ -67,7 +70,7 @@ export class DragInput {
   }
 
   private bind(type: string, fn: (e: Event) => void): void {
-    this.element.addEventListener(type, fn);
+    this.element.addEventListener(type, fn, { passive: false });
     this.handlers.push({ type, fn });
   }
 
@@ -107,6 +110,7 @@ export class DragInput {
 
   private onDown(e: PointerEvent): void {
     if (!this.enabled) return;
+    e.preventDefault();
     this.dragging = true;
     this.origin = { x: e.clientX, y: e.clientY, t: e.timeStamp };
     this.samples.length = 0;
@@ -117,6 +121,7 @@ export class DragInput {
 
   private onMove(e: PointerEvent): void {
     if (!this.dragging || this.origin === null) return;
+    e.preventDefault();
     this.samples.push({ x: e.clientX, y: e.clientY, t: e.timeStamp });
     // 오래된 표본은 버린다 (회전은 마지막 순간만 본다)
     while (this.samples.length > 2 && e.timeStamp - this.samples[0]!.t > 400) {

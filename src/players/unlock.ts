@@ -25,6 +25,9 @@ export function lessonCount(player: Player): LessonCount {
 }
 
 export function isGraduated(player: Player): boolean {
+  // 마스터(교사) 계정은 실제 진행률과 무관하게 항상 다 배운 것으로 친다 —
+  // 수업 시간에 바로 자유 연습·대전 예시를 보여줄 수 있어야 한다.
+  if (player.isMaster === true) return true;
   const { done, total } = lessonCount(player);
   return done >= total;
 }

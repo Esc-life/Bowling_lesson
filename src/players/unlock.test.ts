@@ -4,13 +4,14 @@ import { emptyProgress } from '../tutorial/TutorialFlow';
 import type { Player } from './types';
 import { isGraduated, lessonCount, matchLockReason, practiceLockReason } from './unlock';
 
-function player(name: string, completed: string[]): Player {
+function player(name: string, completed: string[], opts: Partial<Player> = {}): Player {
   return {
     id: name,
     name,
     handedness: 'right',
     progress: { ...emptyProgress(), completedLessons: completed },
     createdAt: 0,
+    ...opts,
   };
 }
 
@@ -46,6 +47,12 @@ describe('practiceLockReason', () => {
   it('전부 배우면 열린다', () => {
     expect(practiceLockReason(player('가', ALL))).toBeNull();
     expect(isGraduated(player('가', ALL))).toBe(true);
+  });
+
+  it('마스터(교사) 계정은 하나도 안 배웠어도 열려 있다', () => {
+    const teacher = player('선생님', [], { isMaster: true });
+    expect(isGraduated(teacher)).toBe(true);
+    expect(practiceLockReason(teacher)).toBeNull();
   });
 });
 

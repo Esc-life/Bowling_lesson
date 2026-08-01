@@ -15,6 +15,10 @@ export type Player = {
   handedness: Handedness;
   progress: ProgressState;
   createdAt: number;
+  /** 있으면 다른 기기와 이름+PIN으로 진행률을 동기화한다. 없으면 이 기기에만 저장 */
+  pin?: string;
+  /** 마스터(교사) 계정 — 실제 진행률과 무관하게 항상 다 배운 것으로 취급한다 */
+  isMaster?: boolean;
 };
 
 /**

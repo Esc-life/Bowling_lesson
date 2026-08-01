@@ -12,6 +12,7 @@
  * 옛 값은 그 화면의 초기 선택(pendingHandedness)으로만 쓴다.
  */
 
+import { pushPlayer } from '../net/PlayerSync';
 import type { Handedness } from '../rules/pinLayout';
 import { emptyProgress, type ProgressState, type QuizScore } from '../tutorial/TutorialFlow';
 import type { Player, StorageLike } from './types';
@@ -122,12 +123,16 @@ function sanitizePlayer(v: unknown): Player | null {
   if (typeof id !== 'string' || id.length === 0) return null;
   if (typeof name !== 'string' || name.trim().length === 0) return null;
   if (hand !== 'left' && hand !== 'right') return null;
+  const pin = o['pin'];
+  const isMaster = o['isMaster'];
   return {
     id,
     name: name.trim(),
     handedness: hand,
     progress: sanitizeProgress(o['progress']),
     createdAt: typeof o['createdAt'] === 'number' ? o['createdAt'] : 0,
+    ...(typeof pin === 'string' && pin.length > 0 ? { pin } : {}),
+    ...(isMaster === true ? { isMaster: true } : {}),
   };
 }
 
@@ -179,7 +184,11 @@ export class PlayerStore {
     this.persist();
   }
 
-  create(rawName: string, handedness: Handedness): Player {
+  create(
+    rawName: string,
+    handedness: Handedness,
+    opts: { pin?: string; isMaster?: boolean; progress?: ProgressState } = {},
+  ): Player {
     const check = checkName(rawName, this.list);
     if (!check.ok) throw new Error(check.reason);
 
@@ -187,13 +196,16 @@ export class PlayerStore {
     // 값이 언제나 이긴다. 옛 값이 이기면, 왼손 학생이 왼손을 눌러도
     // 오른손으로 굳어 버리고 손을 바꾸는 화면이 없어 되돌릴 수가 없다.
     // 옛 손은 pendingHandedness로 노출해 만들기 화면의 초기 선택에만 쓴다.
+    // opts.progress(다른 기기에서 pull된 진행률)가 있으면 그게 이긴다.
     const inherited = this.legacy;
     const player: Player = {
       id: newId(),
       name: check.name,
       handedness,
-      progress: inherited?.progress ?? emptyProgress(),
+      progress: opts.progress ?? inherited?.progress ?? emptyProgress(),
       createdAt: Date.now(),
+      ...(opts.pin !== undefined ? { pin: opts.pin } : {}),
+      ...(opts.isMaster === true ? { isMaster: true } : {}),
     };
 
     if (inherited !== null) {
@@ -220,6 +232,14 @@ export class PlayerStore {
     if (player === undefined) throw new Error(`없는 플레이어입니다: ${id}`);
     player.progress = progress;
     this.persist();
+
+    // PIN을 등록한 플레이어만 원격에도 올린다. await 하지 않는다 — 오프라인이거나
+    // 느려도 수업(저장 자체)이 멈추면 안 된다. 실패는 조용히 버린다.
+    if (player.pin !== undefined) {
+      pushPlayer(player.name, player.pin, player.handedness, progress).catch(() => {
+        /* 다음 저장이나 다음 접속에서 다시 시도된다 */
+      });
+    }
   }
 
   findByName(name: string): Player | null {

@@ -42,7 +42,10 @@ create or replace function public.pull_player(p_name text, p_pin text)
 returns table (found boolean, pin_ok boolean, handedness text, progress jsonb)
 language plpgsql
 security definer
-set search_path = public
+-- Supabase는 pgcrypto(crypt/gen_salt)를 public이 아니라 extensions 스키마에
+-- 설치한다. search_path를 public만으로 두면 이 함수 안에서 crypt()/gen_salt()를
+-- 못 찾아 "function ... does not exist" 오류가 난다 — extensions도 넣어야 한다.
+set search_path = public, extensions
 as $$
 declare
   v_row public.players_sync;
@@ -73,7 +76,10 @@ create or replace function public.push_player(
 ) returns table (ok boolean, error text)
 language plpgsql
 security definer
-set search_path = public
+-- Supabase는 pgcrypto(crypt/gen_salt)를 public이 아니라 extensions 스키마에
+-- 설치한다. search_path를 public만으로 두면 이 함수 안에서 crypt()/gen_salt()를
+-- 못 찾아 "function ... does not exist" 오류가 난다 — extensions도 넣어야 한다.
+set search_path = public, extensions
 as $$
 declare
   v_row public.players_sync;
@@ -122,7 +128,10 @@ create or replace function public.verify_teacher(p_name text, p_password text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+-- Supabase는 pgcrypto(crypt/gen_salt)를 public이 아니라 extensions 스키마에
+-- 설치한다. search_path를 public만으로 두면 이 함수 안에서 crypt()/gen_salt()를
+-- 못 찾아 "function ... does not exist" 오류가 난다 — extensions도 넣어야 한다.
+set search_path = public, extensions
 as $$
 declare
   v_hash text;

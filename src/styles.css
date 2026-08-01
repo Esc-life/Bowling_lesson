@@ -1639,6 +1639,74 @@ button:disabled {
 .form-error { min-height: 1.2em; color: #ffb4a8; font-size: 0.85rem; margin: 0.3rem 0; }
 .row-buttons { display: flex; gap: 0.6rem; align-items: center; }
 
+/* ---------------------------------------------------------------- 다른 기기와 이어서 쓰기
+ * 예전에는 이름 밑에 "선택" 표시 하나뿐인 평범한 입력칸이었다 — 이게 뭔지, 왜 선택인지
+ * 아무 설명이 없어 학생·교사 모두 혼란스러웠다(실기 피드백). 켜고 끄는 스위치로 바꿔
+ * "이건 켜는 기능"이라는 게 한눈에 보이게 하고, 밑에 한 줄 설명을 붙였다. */
+.sync-block { margin-block: 0.9rem; }
+
+.sync-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.7rem;
+  background: rgba(42, 32, 22, 0.05);
+  border: 1px solid rgba(42, 32, 22, 0.16);
+  color: var(--ink-paper);
+  box-shadow: none;
+  text-align: start;
+}
+
+.sync-toggle:hover {
+  background: rgba(42, 32, 22, 0.09);
+  transform: none;
+  box-shadow: none;
+}
+
+.sync-toggle-icon { font-size: 1.4rem; flex: none; }
+.sync-toggle-text { display: grid; gap: 0.1rem; flex: 1; }
+.sync-toggle-title { font-weight: 700; font-size: 0.95rem; }
+.sync-toggle-sub { font-size: 0.75rem; color: var(--ink-paper-dim); }
+
+/* 켜고 끄는 스위치 — 켜지면 --felt-green으로 확 켜져서 "지금 켜져 있다"가 분명해진다 */
+.switch {
+  flex: none;
+  width: 2.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: rgba(42, 32, 22, 0.2);
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.4rem - 4px);
+  height: calc(1.4rem - 4px);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.switch.is-on { background: var(--felt-green); }
+.switch.is-on .switch-knob { transform: translateX(1rem); }
+
+.field--pin { margin-top: 0.6rem; }
+
+/* 선생님 로그인은 학생이 매번 마주칠 필요가 없는 기능이라 눈에 덜 띄게 둔다 */
+.teacher-toggle {
+  display: block;
+  margin: 0.6rem auto 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
 /* ---------------------------------------------------------------- 자유 연습·대전 시작 */
 
 .play-buttons { display: grid; gap: 0.7rem; margin: 0.8rem 0; }

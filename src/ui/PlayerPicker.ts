@@ -26,6 +26,8 @@ export class PlayerPicker {
   private draftPin = '';
   private draftTeacherPassword = '';
   private showTeacherField = false;
+  /** "다른 기기와 이어서 쓰기" 스위치 — 꺼져 있으면 PIN 칸 자체가 안 보인다 */
+  private syncOn = false;
   /** 이름+PIN 확인·교사 비밀번호 확인이 끝날 때까지 중복 제출을 막는다 */
   private submitting = false;
 
@@ -69,6 +71,7 @@ export class PlayerPicker {
     this.draftPin = '';
     this.draftTeacherPassword = '';
     this.showTeacherField = false;
+    this.syncOn = false;
     this.hand = players.pendingHandedness ?? 'right';
   }
 
@@ -143,13 +146,29 @@ export class PlayerPicker {
           </button>
         </div>
 
-        <label class="field field--pin">
-          <span>다른 기기와 이어서 쓰기 (선택)</span>
-          <input id="player-pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
-                 autocomplete="off" placeholder="4자리 번호 (안 넣으면 이 기기에만 저장돼요)"
-                 value="${escapeHtml(this.draftPin)}">
-        </label>
+        <div class="sync-block">
+          <button type="button" class="sync-toggle" data-sync-toggle="1" aria-pressed="${this.syncOn}">
+            <span class="sync-toggle-icon" aria-hidden="true">🔗</span>
+            <span class="sync-toggle-text">
+              <span class="sync-toggle-title">다른 기기와 이어서 쓰기</span>
+              <span class="sync-toggle-sub">집·학교 등 여러 기기에서 이어서 배우고 싶으면 켜 주세요</span>
+            </span>
+            <span class="switch${this.syncOn ? ' is-on' : ''}" aria-hidden="true"><span class="switch-knob"></span></span>
+          </button>
+          <label class="field field--pin${this.syncOn ? '' : ' is-hidden'}" data-pin-field>
+            <span>번호 4자리를 만들어 주세요</span>
+            <input id="player-pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
+                   autocomplete="off" placeholder="다른 기기에서도 이 번호를 똑같이 입력해요"
+                   value="${escapeHtml(this.draftPin)}">
+          </label>
+        </div>
 
+        ${inherit}
+        <p class="form-error" role="alert"></p>
+        <div class="row-buttons">
+          <button type="submit" class="primary-btn">시작하기</button>
+          ${first ? '' : '<button type="button" class="text-btn" data-cancel="1">뒤로</button>'}
+        </div>
         <button type="button" class="text-btn teacher-toggle" data-teacher-toggle="1">
           ${this.showTeacherField ? '선생님 아니에요' : '선생님이신가요?'}
         </button>
@@ -158,20 +177,13 @@ export class PlayerPicker {
           <input id="teacher-password" name="teacherPassword" type="password" autocomplete="off"
                  placeholder="선생님 계정 비밀번호" value="${escapeHtml(this.draftTeacherPassword)}">
         </label>
-
-        ${inherit}
-        <p class="form-error" role="alert"></p>
-        <div class="row-buttons">
-          <button type="submit" class="primary-btn">시작하기</button>
-          ${first ? '' : '<button type="button" class="text-btn" data-cancel="1">뒤로</button>'}
-        </div>
       </form>
     `;
   }
 
   private handleClick(e: Event): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-teacher-toggle]',
+      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-teacher-toggle],[data-sync-toggle]',
     );
     if (el === null) return;
     const d = el.dataset;
@@ -189,6 +201,11 @@ export class PlayerPicker {
     if (d['teacherToggle'] !== undefined) {
       this.showTeacherField = !this.showTeacherField;
       this.updateTeacherField();
+      return;
+    }
+    if (d['syncToggle'] !== undefined) {
+      this.syncOn = !this.syncOn;
+      this.updateSyncBlock();
       return;
     }
     if (d['new'] !== undefined) {
@@ -240,6 +257,25 @@ export class PlayerPicker {
     this.element.querySelector<HTMLElement>('[data-teacher-field]')?.classList.toggle('is-hidden', !this.showTeacherField);
     const toggle = this.element.querySelector<HTMLElement>('[data-teacher-toggle]');
     if (toggle !== null) toggle.textContent = this.showTeacherField ? '선생님 아니에요' : '선생님이신가요?';
+  }
+
+  /** 스위치 모양·PIN 칸을 전체 재렌더 없이 갱신한다 (손 버튼과 같은 이유로 깜빡임을 피한다) */
+  private updateSyncBlock(): void {
+    const toggle = this.element.querySelector<HTMLElement>('[data-sync-toggle]');
+    toggle?.setAttribute('aria-pressed', String(this.syncOn));
+    toggle?.querySelector('.switch')?.classList.toggle('is-on', this.syncOn);
+
+    const pinField = this.element.querySelector<HTMLElement>('[data-pin-field]');
+    pinField?.classList.toggle('is-hidden', !this.syncOn);
+
+    const pinInput = this.element.querySelector<HTMLInputElement>('#player-pin');
+    if (this.syncOn) {
+      pinInput?.focus();
+    } else {
+      // 껐을 때 이미 입력해 둔 번호를 지운다 — 꺼진 채로 남아 있으면 헷갈린다
+      this.draftPin = '';
+      if (pinInput !== null) pinInput.value = '';
+    }
   }
 
   /**
@@ -297,10 +333,10 @@ export class PlayerPicker {
     }
 
     const teacherPassword = teacherInput?.value.trim() ?? '';
-    const pin = pinInput?.value.trim() ?? '';
+    const pin = this.syncOn ? (pinInput?.value.trim() ?? '') : '';
 
-    if (pin.length > 0 && !/^\d{4}$/.test(pin)) {
-      error.textContent = 'PIN은 숫자 4자리로 적어 주세요.';
+    if (this.syncOn && !/^\d{4}$/.test(pin)) {
+      error.textContent = '번호 4자리를 숫자로 적어 주세요.';
       pinInput?.focus();
       return;
     }

@@ -37,6 +37,8 @@ export type TutorialHooks = {
   onOnlineMatch: () => void;
   /** 홈에서 플레이어 바꾸기를 골랐을 때 */
   onSwitchPlayer: () => void;
+  /** 홈에서 학생 등록을 골랐을 때 (교사 계정에서만 불린다) */
+  onRegisterStudent: () => void;
   /** 홈에서 "치던 경기로 돌아가기"를 골랐을 때 */
   onResumeGame: () => void;
   /**
@@ -135,6 +137,10 @@ export class TutorialUI {
       onSwitchPlayer: () => {
         this.closeAll();
         this.hooks.onSwitchPlayer();
+      },
+      onRegisterStudent: () => {
+        this.closeAll();
+        this.hooks.onRegisterStudent();
       },
       onResumeGame: () => {
         this.closeAll();

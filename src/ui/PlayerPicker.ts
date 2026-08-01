@@ -19,6 +19,8 @@ export class PlayerPicker {
   readonly element: HTMLElement;
   private mode: 'list' | 'create' = 'list';
   private pendingDelete: string | null = null;
+  /** 목록에서 PIN·교사 계정을 고를 때 비밀번호를 다시 묻는 중인 플레이어 id */
+  private unlocking: string | null = null;
   private hand: Handedness = 'right';
   // render()가 innerHTML을 통째로 갈아 끼우므로(손 버튼을 누를 때마다),
   // 입력 중이던 이름을 여기 보관했다가 다시 채운다 — 안 그러면 날아간다
@@ -47,6 +49,7 @@ export class PlayerPicker {
     this.element.hidden = false;
     this.mode = players.players.length === 0 ? 'create' : 'list';
     this.pendingDelete = null;
+    this.unlocking = null;
     this.resetDraft();
     this.render();
   }
@@ -79,6 +82,8 @@ export class PlayerPicker {
     this.element.innerHTML = this.mode === 'create' ? this.createHtml() : this.listHtml();
     if (this.mode === 'create') {
       this.element.querySelector<HTMLInputElement>('#player-name')?.focus();
+    } else {
+      this.element.querySelector<HTMLInputElement>('#unlock-value')?.focus();
     }
   }
 
@@ -91,12 +96,36 @@ export class PlayerPicker {
             const { done, total } = lessonCount(p);
             return `${done}/${total} 배움`;
           })();
+        const protectedAccount = p.isMaster === true || p.pin !== undefined;
+
+        if (this.unlocking === p.id) {
+          return `
+            <li class="player-row player-row--unlocking">
+              <form class="unlock-form" data-unlock-form="${p.id}">
+                <span class="unlock-name">${escapeHtml(p.name)}</span>
+                <label class="field">
+                  <span>${p.isMaster === true ? '비밀번호' : '번호 4자리'}</span>
+                  <input id="unlock-value" name="unlockValue"
+                         type="${p.isMaster === true ? 'password' : 'text'}"
+                         ${p.isMaster === true ? '' : 'inputmode="numeric" pattern="[0-9]{4}" maxlength="4"'}
+                         autocomplete="off">
+                </label>
+                <p class="form-error unlock-error" role="alert"></p>
+                <div class="row-buttons">
+                  <button type="submit" class="primary-btn">확인</button>
+                  <button type="button" class="text-btn" data-unlock-cancel="1">취소</button>
+                </div>
+              </form>
+            </li>
+          `;
+        }
+
         const confirming = this.pendingDelete === p.id;
         return `
           <li class="player-row${confirming ? ' player-row--confirming' : ''}">
             <button type="button" class="player-pick" data-pick="${p.id}">
               <span class="player-name">${escapeHtml(p.name)}</span>
-              <span class="player-meta">${handLabel} · ${progressLabel}</span>
+              <span class="player-meta">${protectedAccount ? '🔒 ' : ''}${handLabel} · ${progressLabel}</span>
             </button>
             ${
               confirming
@@ -134,17 +163,6 @@ export class PlayerPicker {
           <input id="player-name" name="name" type="text" maxlength="${MAX_NAME_LENGTH}"
                  autocomplete="off" placeholder="이름을 적어 주세요" value="${escapeHtml(this.draftName)}">
         </label>
-        <p class="lead">공을 어느 손으로 던지나요?</p>
-        <div class="hand-choices">
-          <button type="button" class="hand-choice${this.hand === 'left' ? ' is-on' : ''}" data-hand="left">
-            <span class="hand-icon" aria-hidden="true">🤚</span>
-            <span class="hand-name">왼손</span>
-          </button>
-          <button type="button" class="hand-choice${this.hand === 'right' ? ' is-on' : ''}" data-hand="right">
-            <span class="hand-icon hand-icon--flip" aria-hidden="true">🤚</span>
-            <span class="hand-name">오른손</span>
-          </button>
-        </div>
 
         <div class="sync-block">
           <button type="button" class="sync-toggle" data-sync-toggle="1" aria-pressed="${this.syncOn}">
@@ -163,12 +181,6 @@ export class PlayerPicker {
           </label>
         </div>
 
-        ${inherit}
-        <p class="form-error" role="alert"></p>
-        <div class="row-buttons">
-          <button type="submit" class="primary-btn">시작하기</button>
-          ${first ? '' : '<button type="button" class="text-btn" data-cancel="1">뒤로</button>'}
-        </div>
         <button type="button" class="text-btn teacher-toggle" data-teacher-toggle="1">
           ${this.showTeacherField ? '선생님 아니에요' : '선생님이신가요?'}
         </button>
@@ -177,25 +189,58 @@ export class PlayerPicker {
           <input id="teacher-password" name="teacherPassword" type="password" autocomplete="off"
                  placeholder="선생님 계정 비밀번호" value="${escapeHtml(this.draftTeacherPassword)}">
         </label>
+
+        <p class="lead">공을 어느 손으로 던지나요?</p>
+        <div class="hand-choices">
+          <button type="button" class="hand-choice${this.hand === 'left' ? ' is-on' : ''}" data-hand="left">
+            <span class="hand-icon" aria-hidden="true">🤚</span>
+            <span class="hand-name">왼손</span>
+          </button>
+          <button type="button" class="hand-choice${this.hand === 'right' ? ' is-on' : ''}" data-hand="right">
+            <span class="hand-icon hand-icon--flip" aria-hidden="true">🤚</span>
+            <span class="hand-name">오른손</span>
+          </button>
+        </div>
+
+        ${inherit}
+        <p class="form-error" role="alert"></p>
+        <div class="row-buttons">
+          <button type="submit" class="primary-btn">시작하기</button>
+          ${first ? '' : '<button type="button" class="text-btn" data-cancel="1">뒤로</button>'}
+        </div>
       </form>
     `;
   }
 
   private handleClick(e: Event): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-teacher-toggle],[data-sync-toggle]',
+      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-teacher-toggle],[data-sync-toggle],[data-unlock-cancel]',
     );
     if (el === null) return;
     const d = el.dataset;
 
     if (d['pick'] !== undefined) {
-      players.select(d['pick']);
+      const id = d['pick'];
+      const target = players.players.find((p) => p.id === id);
+      // 공용 PC의 목록에 남아 있다는 이유만으로 남의 PIN 계정·교사 계정에
+      // 그냥 들어가면 안 된다 — 고를 때마다 다시 확인한다.
+      if (target !== undefined && (target.pin !== undefined || target.isMaster === true)) {
+        this.unlocking = id;
+        this.render();
+        return;
+      }
+      players.select(id);
       const picked = players.current;
       if (picked !== null) {
         // PIN이 있는 플레이어는 다른 기기에서 더 나아간 진행률이 있을 수 있으니
         // 들어가기 전에 한 번 맞춰 본다 — 실패해도(오프라인 등) 로컬 그대로 진행한다.
         void this.syncOnEntry(picked).then((synced) => this.onDone(synced));
       }
+      return;
+    }
+    if (d['unlockCancel'] !== undefined) {
+      this.unlocking = null;
+      this.render();
       return;
     }
     if (d['teacherToggle'] !== undefined) {
@@ -302,6 +347,53 @@ export class PlayerPicker {
     return player;
   }
 
+  /**
+   * 목록에서 PIN·교사 계정을 골랐을 때 다시 입력한 비밀번호를 확인한다.
+   *
+   * PIN 계정은 이 기기에 이미 저장된 값(player.pin)과 그대로 비교한다 —
+   * PIN은 실제 보안이 아니라 충돌 방지용이라 오프라인에서도 통과해야 한다.
+   * 교사 계정은 비밀번호를 로컬에 두지 않으므로 매번 서버로 확인한다.
+   */
+  private async confirmUnlock(id: string): Promise<void> {
+    if (this.submitting) return;
+    const player = players.players.find((p) => p.id === id);
+    if (player === undefined) return;
+
+    const input = this.element.querySelector<HTMLInputElement>('#unlock-value');
+    const error = this.element.querySelector<HTMLElement>('.unlock-error');
+    const btn = this.element.querySelector<HTMLButtonElement>('.unlock-form button[type="submit"]');
+    const value = input?.value.trim() ?? '';
+
+    this.submitting = true;
+    const original = btn?.textContent ?? '';
+    if (btn !== null) {
+      btn.disabled = true;
+      btn.textContent = '확인하는 중…';
+    }
+
+    try {
+      const ok = player.isMaster === true ? await verifyTeacher(player.name, value) : value.length > 0 && value === player.pin;
+      if (!ok) {
+        if (error !== null) error.textContent = player.isMaster === true ? '비밀번호가 달라요.' : '번호가 달라요.';
+        input?.focus();
+        return;
+      }
+      this.unlocking = null;
+      players.select(id);
+      const picked = players.current;
+      if (picked !== null) {
+        const synced = await this.syncOnEntry(picked);
+        this.onDone(synced);
+      }
+    } finally {
+      this.submitting = false;
+      if (btn !== null) {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
+  }
+
   private handleInput(e: Event): void {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
@@ -312,6 +404,12 @@ export class PlayerPicker {
 
   private handleSubmit(e: Event): void {
     e.preventDefault();
+    const form = e.target;
+    const unlockId = form instanceof HTMLFormElement ? form.dataset['unlockForm'] : undefined;
+    if (unlockId !== undefined) {
+      void this.confirmUnlock(unlockId);
+      return;
+    }
     void this.submit();
   }
 

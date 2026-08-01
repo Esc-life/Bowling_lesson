@@ -607,6 +607,20 @@ button:disabled {
   animation: panel-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
+/* PC 화면에서는 패널이 실제 크기보다 커 보인다는 실기 피드백 — 사용자가
+   브라우저를 90%로 축소해서 보고 있었다. 브라우저 확대/축소에 기대는 대신
+   패널 자체를 90% 크기로 그린다. zoom은 max-height:88vh가 가리키는 실제
+   뷰포트 값은 그대로 두고 렌더링 크기만 줄이므로, overflow-y:auto 스크롤은
+   전과 똑같이 동작한다(사용자가 겪은 "90%로 줄이면 스크롤이 사라지는" 문제는
+   브라우저 자체 확대/축소의 부작용이었다). 모바일 레이아웃(640px 이하)은
+   이미 실기 조정을 여러 번 거쳤으므로 건드리지 않는다.
+*/
+@media (min-width: 641px) {
+  .overlay .panel {
+    zoom: 0.9;
+  }
+}
+
 /* 종이 패널 안에서는 --ink/--ink-dim이 잉크(어두운) 값을 가리키게 한다.
    HUD류 하위 요소(예: 점수판 다이어그램)는 각자 --ink-hud를 직접 쓰므로 영향받지 않는다. */
 .overlay .panel {
@@ -1062,6 +1076,35 @@ button:disabled {
   flex-direction: column;
   gap: 12px;
   margin-top: 14px;
+}
+
+.areas-done {
+  margin-top: 14px;
+}
+
+.areas-done > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-paper-dim);
+  padding: 6px 0;
+}
+
+.areas-done > summary::-webkit-details-marker {
+  display: none;
+}
+
+.areas-done > summary::before {
+  content: '▸ ';
+}
+
+.areas-done[open] > summary::before {
+  content: '▾ ';
+}
+
+.areas-done .areas {
+  margin-top: 10px;
 }
 
 .area-card {
@@ -1631,6 +1674,26 @@ button:disabled {
 .player-meta { font-size: 0.8rem; opacity: 0.75; }
 .delete-confirm { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .delete-warn { font-size: 0.8rem; opacity: 0.85; }
+
+.player-row--unlocking { display: block; }
+.unlock-form {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.unlock-name { font-weight: 700; font-size: 1.05rem; }
+.unlock-form .field { margin-block: 0.5rem; }
+
+/* 교사가 학생을 등록하면 알려줄 번호를 크게 보여준다 — 받아 적어야 하니까 */
+.student-pin-display {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  letter-spacing: 0.2em;
+  color: var(--ball-blue-deep);
+  margin: 0.4rem 0 0.8rem;
+}
 .field { display: grid; gap: 0.3rem; margin-block: 0.8rem; }
 .field input {
   padding: 0.6rem 0.8rem; border-radius: 0.6rem; font-size: 1.05rem;

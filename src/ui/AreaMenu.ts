@@ -37,6 +37,8 @@ export type AreaMenuCallbacks = {
   onOnlineMatch: () => void;
   /** 플레이어 바꾸기 */
   onSwitchPlayer: () => void;
+  /** 학생 계정 등록하기 (교사 계정에서만 보인다) */
+  onRegisterStudent: () => void;
   /** 치던 10프레임 경기로 그대로 돌아가기 (resumeGame이 있을 때만 불린다) */
   onResumeGame: () => void;
 };
@@ -82,6 +84,9 @@ export class AreaMenu {
       switch (act) {
         case 'switch-player':
           this.callbacks.onSwitchPlayer();
+          break;
+        case 'register-student':
+          this.callbacks.onRegisterStudent();
           break;
         case 'continue': {
           const next = target.dataset['next'];
@@ -178,6 +183,11 @@ export class AreaMenu {
         : `
       <div class="player-bar">
         <span class="player-current">${escapeHtml(player.name)}</span>
+        ${
+          player.isMaster === true
+            ? '<button type="button" class="text-btn" data-act="register-student">학생 등록</button>'
+            : ''
+        }
         <button type="button" class="text-btn" data-act="switch-player">바꾸기</button>
       </div>
     `;
@@ -232,7 +242,16 @@ export class AreaMenu {
             </button>`
           : `<div class="menu-alldone">🏆 모든 레슨을 마쳤어요!</div>`
       }
-      <div class="areas">${areaCards.join('')}</div>
+      ${
+        // 학습·퀴즈를 다 마쳤으면 영역별 레슨 목록은 더 볼 일이 적다.
+        // 접어 두고 놀기 버튼들을 바로 보여준다 — 필요하면 눌러서 펼친다.
+        nextLesson === null && totalCount > 0
+          ? `<details class="areas-done"${focusArea !== undefined ? ' open' : ''}>
+              <summary>레슨 목록 다시 보기</summary>
+              <div class="areas">${areaCards.join('')}</div>
+            </details>`
+          : `<div class="areas">${areaCards.join('')}</div>`
+      }
       ${playButtons}
       <div class="menu-foot">
         <button type="button" class="text-btn" data-act="report">내 리포트 보기</button>
@@ -277,6 +296,9 @@ export class AreaMenu {
     const ask = this.panelEl.querySelector<HTMLElement>('[data-act="reset-ask"]');
     if (confirm !== null) confirm.hidden = false;
     if (ask !== null) ask.hidden = true;
+    // 모바일에서는 이 줄이 화면 아래로 밀려 나가 눌러도 반응이 없는 것처럼
+    // 보인다(실기에서 확인) — 나타나는 즉시 보이는 곳으로 따라간다.
+    confirm?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   private hideResetConfirm(): void {

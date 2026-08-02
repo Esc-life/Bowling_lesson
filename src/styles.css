@@ -1686,6 +1686,15 @@ button:disabled {
 .unlock-name { font-weight: 700; font-size: 1.05rem; }
 .unlock-form .field { margin-block: 0.5rem; }
 
+/* 교사 대시보드 — 등록한 학생들의 진행률 목록 */
+.student-list { list-style: none; margin: 0.8rem 0; padding: 0; display: grid; gap: 0.5rem; }
+.student-row {
+  display: grid; gap: 0.15rem; padding: 0.7rem 0.9rem; border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.student-name { font-weight: 700; font-size: 1.05rem; }
+.student-meta { font-size: 0.8rem; opacity: 0.75; }
+
 /* 교사가 학생을 등록하면 알려줄 번호를 크게 보여준다 — 받아 적어야 하니까 */
 .student-pin-display {
   font-family: var(--font-display);

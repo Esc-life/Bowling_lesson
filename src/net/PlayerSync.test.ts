@@ -11,7 +11,9 @@ vi.mock('./supabaseClient', () => ({
   getSupabaseClient: vi.fn(async () => clientRef.current),
 }));
 
-const { mergeProgress, pullPlayer, pushPlayer, verifyTeacher } = await import('./PlayerSync');
+const { mergeProgress, pullPlayer, pushPlayer, verifyTeacher, registerStudent, listStudents } = await import(
+  './PlayerSync'
+);
 
 function progress(over: Partial<ProgressState> = {}): ProgressState {
   return { completedLessons: [], quizScores: {}, currentLessonId: null, ...over };
@@ -120,5 +122,81 @@ describe('verifyTeacher', () => {
   it('RPC 에러도 false(존재 여부를 드러내지 않는다)', async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: '함수가 없음' } });
     expect(await verifyTeacher('아무개', 'x')).toBe(false);
+  });
+});
+
+describe('registerStudent', () => {
+  it('Supabase 설정이 없으면 offline 에러', async () => {
+    clientRef.current = null;
+    expect(await registerStudent('선생님', 'secret', '민준', '1234')).toEqual({ ok: false, error: 'offline' });
+  });
+
+  it('성공하면 ok', async () => {
+    rpcMock.mockResolvedValue({ data: [{ ok: true, error: null }], error: null });
+    expect(await registerStudent('선생님', 'secret', '민준', '1234')).toEqual({ ok: true });
+  });
+
+  it('교사 인증 실패는 에러로 전달한다', async () => {
+    rpcMock.mockResolvedValue({ data: [{ ok: false, error: 'teacher_auth_failed' }], error: null });
+    expect(await registerStudent('선생님', 'wrong', '민준', '1234')).toEqual({
+      ok: false,
+      error: 'teacher_auth_failed',
+    });
+  });
+
+  it('이미 있는 이름이면 name_taken', async () => {
+    rpcMock.mockResolvedValue({ data: [{ ok: false, error: 'name_taken' }], error: null });
+    expect(await registerStudent('선생님', 'secret', '민준', '1234')).toEqual({ ok: false, error: 'name_taken' });
+  });
+});
+
+describe('listStudents', () => {
+  it('Supabase 설정이 없으면 offline', async () => {
+    clientRef.current = null;
+    expect(await listStudents('선생님', 'secret')).toEqual({ kind: 'offline' });
+  });
+
+  it('비밀번호가 틀리면 auth_failed', async () => {
+    rpcMock.mockResolvedValue({
+      data: [{ ok: false, name: null, handedness: null, progress: null, updated_at: null }],
+      error: null,
+    });
+    expect(await listStudents('선생님', 'wrong')).toEqual({ kind: 'auth_failed' });
+  });
+
+  it('학생이 없으면 빈 목록으로 성공', async () => {
+    rpcMock.mockResolvedValue({ data: [], error: null });
+    expect(await listStudents('선생님', 'secret')).toEqual({ kind: 'ok', students: [] });
+  });
+
+  it('학생 목록을 돌려준다', async () => {
+    rpcMock.mockResolvedValue({
+      data: [
+        {
+          ok: true,
+          name: '민준',
+          handedness: 'left',
+          progress: { completedLessons: ['A1'], quizScores: {}, currentLessonId: 'A2' },
+          updated_at: '2026-08-02T00:00:00Z',
+        },
+      ],
+      error: null,
+    });
+    expect(await listStudents('선생님', 'secret')).toEqual({
+      kind: 'ok',
+      students: [
+        {
+          name: '민준',
+          handedness: 'left',
+          progress: { completedLessons: ['A1'], quizScores: {}, currentLessonId: 'A2' },
+          updatedAt: '2026-08-02T00:00:00Z',
+        },
+      ],
+    });
+  });
+
+  it('RPC 에러는 offline으로 취급한다', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: '함수가 없음' } });
+    expect(await listStudents('선생님', 'secret')).toEqual({ kind: 'offline' });
   });
 });

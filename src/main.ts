@@ -31,6 +31,7 @@ import { ObserveControls } from './ui/ObserveControls';
 import { OnlineMatchSetup, type OnlineMatchStart } from './ui/OnlineMatchSetup';
 import { PlayerPicker } from './ui/PlayerPicker';
 import { PracticeSetup } from './ui/PracticeSetup';
+import { TeacherDashboard } from './ui/TeacherDashboard';
 import { TeacherRegister } from './ui/TeacherRegister';
 import { Progress } from './tutorial/Progress';
 import { Scoreboard } from './ui/Scoreboard';
@@ -273,10 +274,15 @@ async function main(): Promise<void> {
     teacherRegister.hide();
     openHome();
   });
+  const teacherDashboard = new TeacherDashboard(() => {
+    teacherDashboard.hide();
+    openHome();
+  });
   ui.appendChild(practiceSetup.element);
   ui.appendChild(matchSetup.element);
   ui.appendChild(onlineMatchSetup.element);
   ui.appendChild(teacherRegister.element);
+  ui.appendChild(teacherDashboard.element);
 
   tutorial = new TutorialUI(game, ui, {
     onSessionChange: ({ hideScoreboard }) => {
@@ -288,6 +294,7 @@ async function main(): Promise<void> {
     onOnlineMatch: () => onlineMatchSetup.show(),
     onSwitchPlayer: () => picker.show(),
     onRegisterStudent: () => teacherRegister.show(),
+    onViewStudents: () => teacherDashboard.show(),
     onResumeGame: () => {
       scoreboard.element.classList.remove('is-hidden');
       refresh();

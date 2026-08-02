@@ -22,6 +22,20 @@ export type PullResult =
 
 export type PushResult = { ok: true } | { ok: false; error: string };
 
+export type RegisterStudentResult = { ok: true } | { ok: false; error: string };
+
+export type StudentRecord = {
+  name: string;
+  handedness: Handedness;
+  progress: ProgressState;
+  updatedAt: string;
+};
+
+export type ListStudentsResult =
+  | { kind: 'offline' }
+  | { kind: 'auth_failed' }
+  | { kind: 'ok'; students: StudentRecord[] };
+
 function isHandedness(v: unknown): v is Handedness {
   return v === 'left' || v === 'right';
 }
@@ -133,4 +147,58 @@ export async function verifyTeacher(name: string, password: string): Promise<boo
   const { data, error } = await supabase.rpc('verify_teacher', { p_name: name, p_password: password });
   if (error !== null) return false;
   return data === true;
+}
+
+/** 교사가 학생 계정을 미리 만든다. 교사 비밀번호는 매번 서버에서 새로 검증한다(캐시하지 않는다) */
+export async function registerStudent(
+  teacherName: string,
+  teacherPassword: string,
+  studentName: string,
+  pin: string,
+): Promise<RegisterStudentResult> {
+  const supabase = await getSupabaseClient();
+  if (supabase === null) return { ok: false, error: 'offline' };
+
+  const { data, error } = await supabase.rpc('register_student', {
+    p_teacher_name: teacherName,
+    p_teacher_password: teacherPassword,
+    p_student_name: studentName,
+    p_pin: pin,
+  });
+  if (error !== null || data === null) return { ok: false, error: 'offline' };
+
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  if (row === undefined || row['ok'] !== true) {
+    const reason = row?.['error'];
+    return { ok: false, error: typeof reason === 'string' ? reason : 'unknown' };
+  }
+  return { ok: true };
+}
+
+/** 그 교사가 register_student로 만든 학생들의 진행률을 돌려준다 */
+export async function listStudents(teacherName: string, teacherPassword: string): Promise<ListStudentsResult> {
+  const supabase = await getSupabaseClient();
+  if (supabase === null) return { kind: 'offline' };
+
+  const { data, error } = await supabase.rpc('list_students', {
+    p_teacher_name: teacherName,
+    p_teacher_password: teacherPassword,
+  });
+  if (error !== null || data === null) return { kind: 'offline' };
+
+  const rows = (Array.isArray(data) ? data : [data]) as Record<string, unknown>[];
+  if (rows.length === 0) return { kind: 'ok', students: [] };
+  if (rows[0]?.['ok'] !== true) return { kind: 'auth_failed' };
+
+  const students: StudentRecord[] = rows.map((row) => {
+    const handedness = row['handedness'];
+    const updatedAt = row['updated_at'];
+    return {
+      name: typeof row['name'] === 'string' ? row['name'] : '',
+      handedness: isHandedness(handedness) ? handedness : 'right',
+      progress: sanitizeRemoteProgress(row['progress']),
+      updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
+    };
+  });
+  return { kind: 'ok', students };
 }

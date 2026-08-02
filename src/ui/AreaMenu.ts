@@ -39,6 +39,8 @@ export type AreaMenuCallbacks = {
   onSwitchPlayer: () => void;
   /** 학생 계정 등록하기 (교사 계정에서만 보인다) */
   onRegisterStudent: () => void;
+  /** 등록한 학생들의 기록 보기 (교사 계정에서만 보인다) */
+  onViewStudents: () => void;
   /** 치던 10프레임 경기로 그대로 돌아가기 (resumeGame이 있을 때만 불린다) */
   onResumeGame: () => void;
 };
@@ -87,6 +89,9 @@ export class AreaMenu {
           break;
         case 'register-student':
           this.callbacks.onRegisterStudent();
+          break;
+        case 'view-students':
+          this.callbacks.onViewStudents();
           break;
         case 'continue': {
           const next = target.dataset['next'];
@@ -185,7 +190,8 @@ export class AreaMenu {
         <span class="player-current">${escapeHtml(player.name)}</span>
         ${
           player.isMaster === true
-            ? '<button type="button" class="text-btn" data-act="register-student">학생 등록</button>'
+            ? `<button type="button" class="text-btn" data-act="register-student">학생 등록</button>
+               <button type="button" class="text-btn" data-act="view-students">학생 기록</button>`
             : ''
         }
         <button type="button" class="text-btn" data-act="switch-player">바꾸기</button>

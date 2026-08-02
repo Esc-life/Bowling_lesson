@@ -7,6 +7,11 @@
 동기화·마스터 계정(이름+PIN, 교사 서버 인증)은 이미 구현했다 —
 `docs/superpowers/specs/2026-08-01-cross-device-sync-master-account-design.md` 참고.
 
+3번(교사 계정에서 학생 기록 조회)과 4번(교사가 학생 계정을 만드는 방식)도
+2026-08-02에 구현했다 — `docs/superpowers/specs/2026-08-02-teacher-student-dashboard-design.md`
+참고. 아래 3·4번 절은 원래 미결정이었던 내용을 남겨 두되, 실제로는 그 문서의
+설계로 확정되었다.
+
 ## 1. 카메라·모션 인식으로 공 굴리기
 
 기기 카메라와 연결해, 스킬(Kinect류) 또는 다른 플랫폼의 모션 인식 기능으로 사용자의

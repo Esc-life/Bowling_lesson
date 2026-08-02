@@ -10,11 +10,16 @@
  * 손은 여기서 묻지 않는다 — 학생이 자기 기기에서 처음 들어올 때 고르는
  * 값이 항상 이기므로(PlayerPicker.submit 참고), 여기서 정해 봤자 의미가
  * 없다. 'right'는 그 자리를 채우기 위한 자리표시자일 뿐이다.
+ *
+ * 교사 비밀번호는 이 화면에서마다 다시 입력받는다 — isMaster 로그인 때
+ * 검증한 비밀번호를 어디에도 캐시해 두지 않기 때문(PlayerPicker의 재인증
+ * 방식과 같은 원칙). register_student RPC가 서버에서 다시 검증하고,
+ * 성공한 학생 행에만 이 교사 이름을 소유자로 남긴다 — TeacherDashboard가
+ * 그 소유 관계로 학생 목록을 조회한다.
  */
 
-import { pushPlayer } from '../net/PlayerSync';
-import { MAX_NAME_LENGTH } from '../players/PlayerStore';
-import { emptyProgress } from '../tutorial/TutorialFlow';
+import { registerStudent } from '../net/PlayerSync';
+import { MAX_NAME_LENGTH, players } from '../players/PlayerStore';
 import { escapeHtml } from '../util/html';
 
 function randomPin(): string {
@@ -25,6 +30,7 @@ export class TeacherRegister {
   readonly element: HTMLElement;
   private draftName = '';
   private draftPin = randomPin();
+  private draftPassword = '';
   private submitting = false;
   private registered: { name: string; pin: string } | null = null;
 
@@ -41,6 +47,7 @@ export class TeacherRegister {
   show(): void {
     this.draftName = '';
     this.draftPin = randomPin();
+    this.draftPassword = '';
     this.registered = null;
     this.element.hidden = false;
     this.render();
@@ -74,6 +81,11 @@ export class TeacherRegister {
                  autocomplete="off" value="${escapeHtml(this.draftPin)}">
         </label>
         <button type="button" class="text-btn" data-regen-pin="1">번호 다시 만들기</button>
+        <label class="field">
+          <span>선생님 비밀번호 확인</span>
+          <input id="teacher-password" name="teacherPassword" type="password"
+                 autocomplete="off" value="${escapeHtml(this.draftPassword)}">
+        </label>
         <p class="form-error" role="alert"></p>
         <div class="row-buttons">
           <button type="submit" class="primary-btn">등록하기</button>
@@ -126,6 +138,7 @@ export class TeacherRegister {
     if (!(target instanceof HTMLInputElement)) return;
     if (target.id === 'student-name') this.draftName = target.value;
     if (target.id === 'student-pin') this.draftPin = target.value;
+    if (target.id === 'teacher-password') this.draftPassword = target.value;
   }
 
   private handleSubmit(e: Event): void {
@@ -138,9 +151,16 @@ export class TeacherRegister {
 
     const nameInput = this.element.querySelector<HTMLInputElement>('#student-name');
     const pinInput = this.element.querySelector<HTMLInputElement>('#student-pin');
+    const passwordInput = this.element.querySelector<HTMLInputElement>('#teacher-password');
     const error = this.element.querySelector<HTMLElement>('.form-error');
     const submitBtn = this.element.querySelector<HTMLButtonElement>('button[type="submit"]');
-    if (nameInput === null || pinInput === null || error === null) return;
+    if (nameInput === null || pinInput === null || passwordInput === null || error === null) return;
+
+    const teacherName = players.current;
+    if (teacherName === null || teacherName.isMaster !== true) {
+      error.textContent = '선생님 계정으로 다시 들어와 주세요.';
+      return;
+    }
 
     const name = nameInput.value.trim();
     if (name.length === 0) {
@@ -159,6 +179,12 @@ export class TeacherRegister {
       pinInput.focus();
       return;
     }
+    const password = passwordInput.value;
+    if (password.length === 0) {
+      error.textContent = '선생님 비밀번호를 입력해 주세요.';
+      passwordInput.focus();
+      return;
+    }
 
     this.submitting = true;
     error.textContent = '';
@@ -169,12 +195,14 @@ export class TeacherRegister {
     }
 
     try {
-      const result = await pushPlayer(name, pin, 'right', emptyProgress());
+      const result = await registerStudent(teacherName.name, password, name, pin);
       if (!result.ok) {
         error.textContent =
-          result.error === 'pin_mismatch'
+          result.error === 'name_taken'
             ? '이미 있는 이름이에요. 다른 이름을 써 주세요.'
-            : '지금은 등록할 수 없어요. 인터넷 연결을 확인해 주세요.';
+            : result.error === 'teacher_auth_failed'
+              ? '비밀번호가 달라요.'
+              : '지금은 등록할 수 없어요. 인터넷 연결을 확인해 주세요.';
         return;
       }
       this.registered = { name, pin };

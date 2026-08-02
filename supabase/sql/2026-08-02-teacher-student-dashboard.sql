@@ -1,5 +1,11 @@
 -- 교사-학생 소속 관계 + 교사용 학생 기록 조회 대시보드용 스키마.
 --
+-- **2026-08-02 재수정**: 사용자가 처음 이 파일을 실행한 뒤 실기 확인(curl)에서
+-- list_students가 "column reference name is ambiguous" 오류로 항상 실패하는 걸
+-- 발견했다 — RETURNS TABLE에 name 컬럼이 있으면 plpgsql이 그 이름으로 변수를
+-- 만들어 버려 teacher_accounts.name과 충돌한다(아래 함수 본문 주석 참고). 이
+-- create or replace만 다시 실행하면 된다 — 테이블 데이터는 안전.
+--
 -- 2026-08-01-players-sync.sql 다음에 실행한다(같은 players_sync/teacher_accounts
 -- 테이블을 그대로 쓴다). 이 앱은 GitHub Pages 정적 배포라 자체 서버가 없고,
 -- 나(어시스턴트)는 서비스 롤 키가 없어 이 SQL을 대신 실행할 수 없다 —
@@ -71,7 +77,12 @@ as $$
 declare
   v_teacher_hash text;
 begin
-  select password_hash into v_teacher_hash from public.teacher_accounts where name = p_teacher_name;
+  -- RETURNS TABLE(..., name text, ...)가 plpgsql 안에서 암묵적으로 "name" 변수를
+  -- 만들어 버려, 아래 조건을 "where name = ..."로 쓰면 teacher_accounts.name
+  -- 컬럼과 그 변수가 충돌해 "column reference name is ambiguous" 오류가 난다.
+  -- 테이블 별칭으로 명시해야 한다(register_student는 반환 컬럼에 name이 없어
+  -- 이 문제가 없었다).
+  select ta.password_hash into v_teacher_hash from public.teacher_accounts ta where ta.name = p_teacher_name;
   if v_teacher_hash is null or v_teacher_hash <> crypt(p_teacher_password, v_teacher_hash) then
     return query select false, null::text, null::text, null::jsonb, null::timestamptz;
     return;

@@ -1,8 +1,10 @@
 /**
  * 플레이어 저장에 쓰는 타입.
  *
- * 계정이 아니다. 공용 PC 한 대에서 여러 학생이 이름만 구분해 쓰는 것이
- * 목적이라 비밀번호도 서버도 없다.
+ * 계정은 교사만 만든다(TeacherRegister). 학생은 교사가 발급한 로그인 코드로만
+ * 들어오므로, 이 로컬 레코드는 서버 계정(`code`)의 이 기기용 사본이다. `code`도
+ * `isMaster`도 없는 플레이어는 없다 — 있다면 옛 버전(이름만으로 만들던 시절)의
+ * 잔재다.
  */
 
 import type { Handedness } from '../rules/pinLayout';
@@ -15,8 +17,8 @@ export type Player = {
   handedness: Handedness;
   progress: ProgressState;
   createdAt: number;
-  /** 있으면 다른 기기와 이름+PIN으로 진행률을 동기화한다. 없으면 이 기기에만 저장 */
-  pin?: string;
+  /** 교사가 발급한 로그인 코드. 이 값으로 서버 계정과 진행률을 동기화한다 */
+  code?: string;
   /** 마스터(교사) 계정 — 실제 진행률과 무관하게 항상 다 배운 것으로 취급한다 */
   isMaster?: boolean;
 };

@@ -5,17 +5,29 @@
 `docs/superpowers/specs/2026-07-31-players-freeplay-match-design.md`, 3단계(온라인 실시간
 대전)의 설계는 `docs/superpowers/specs/2026-08-01-online-match-design.md`에 있습니다.
 
-검증 상태: **테스트 311개 통과 · 타입 검사 통과 · 프로덕션 빌드 성공**
+검증 상태: **테스트 320개 통과 · 타입 검사 통과 · 프로덕션 빌드 성공**
 (1·2단계는 실기에서 찾은 문제 6건 **전부 고쳤습니다** — 아래 "실기에서 찾은 문제" 참고.
 3단계 온라인 실시간 대전을 새로 만들어 Supabase Realtime 프로젝트에 직접 연결해 두 개의 완전히
 분리된 브라우저로 실기 검증까지 마쳤습니다 — 아래 "3단계 — 온라인 실시간 대전" 참고)
 
-> ✅ **4단계(아래) SQL 버그를 사용자가 재실행해 고쳤고, 실기로 재확인했습니다.**
-> `pull_player`/`push_player`/`verify_teacher`가 `crypt()`/`gen_salt()`를 못 찾던
-> `search_path` 버그(`supabase/sql/2026-08-01-players-sync.sql`)를 사용자가 SQL을
-> 다시 실행해 고쳤습니다. 실제 앱 UI로 새 이름+PIN을 등록해 곧바로 Supabase
-> `players_sync` 테이블에서 조회되는 것까지 확인했습니다. 자세한 내용은 아래
-> "4단계 — 기기 간 진행률 동기화 + 마스터 계정" 참고.
+> ⚠️ **2026-09-15: 계정 방식을 통째로 바꿨습니다 — 아래 "4단계" 절의 이름+PIN/교사
+> 이름+비밀번호 설명은 이제 옛날 이야기입니다.**
+> 계정은 이제 **교사만** 만듭니다(`TeacherRegister`). 학생은 이름을 직접 짓지 않고
+> 교사가 발급한 **6자리 로그인 코드** 하나로만 로그인합니다(`PlayerPicker`의 "학생"
+> 탭 → `login_student` RPC). 교사 인증은 이름+비밀번호를 미리 등록해 두던
+> `teacher_accounts` 테이블을 없애고, 공유 코드 **`gusanteacher`**를 그대로 입력받아
+> 비교하는 것으로 바꿨습니다(`verify_teacher_code`) — 교사마다 계정을 미리 만들어 둘
+> 필요가 없습니다. 교사 계정은 그대로 학습 메뉴가 열려 있고 "학생 등록"/"학생 기록"
+> 버튼도 그대로입니다.
+>
+> 새 스키마는 `supabase/sql/2026-09-15-teacher-code-login.sql` 하나로 옛
+> `2026-08-01-players-sync.sql`·`2026-08-02-teacher-student-dashboard.sql`을
+> 완전히 대체합니다(파일 맨 위에서 기존 테이블을 지우고 새로 만듭니다 — 실제 학생
+> 데이터가 거의 없어 마이그레이션 없이 재생성하기로 했습니다). **Supabase SQL
+> Editor에서 이 새 파일을 실행해야 로그인 코드 기능이 실제로 동작합니다.**
+> `.env.local`이 없는 개발 환경에서 오프라인 안내 문구까지는 Playwright로 실기
+> 확인했지만, 실제 Supabase 프로젝트에 대고 코드 로그인·학생 등록 왕복까지는
+> 아직 실기 검증하지 못했습니다 — 사용자가 SQL을 실행한 뒤 확인이 필요합니다.
 
 실행: `npm run dev` → http://localhost:5173/
 딥링크: `?player=민준` `?lesson=B3` `?area=D` `?debug=1`

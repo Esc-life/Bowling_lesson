@@ -1,10 +1,9 @@
 /**
  * 교사 계정 전용 — 자신이 register_student로 만든 학생들의 진행률을 본다.
  *
- * TeacherRegister와 같은 원칙 — 비밀번호는 여기서도 매번 새로 입력받아
- * 서버(list_students RPC)에서 검증한다. 학생이 스스로 만든 계정(교사가
- * 만들지 않은 계정)은 소속이 없어 목록에 나오지 않는다 — 자기 진행률을
- * 아무 교사나 볼 수 있으면 안 되기 때문에 의도한 동작이다.
+ * TeacherRegister와 같은 원칙 — 인증 코드는 여기서도 매번 새로 입력받아
+ * 서버(list_students RPC)에서 검증한다. 학생 로그인 코드도 같이 보여줘서
+ * 잃어버렸을 때 다시 알려줄 수 있게 한다.
  */
 
 import { listStudents, type StudentRecord } from '../net/PlayerSync';
@@ -36,7 +35,7 @@ function formatUpdatedAt(iso: string): string {
 
 export class TeacherDashboard {
   readonly element: HTMLElement;
-  private draftPassword = '';
+  private draftCode = '';
   private submitting = false;
   private state: { kind: 'form' } | { kind: 'error'; message: string } | { kind: 'ok'; students: StudentRecord[] } = {
     kind: 'form',
@@ -53,7 +52,7 @@ export class TeacherDashboard {
   }
 
   show(): void {
-    this.draftPassword = '';
+    this.draftCode = '';
     this.state = { kind: 'form' };
     this.element.hidden = false;
     this.render();
@@ -75,11 +74,11 @@ export class TeacherDashboard {
     return `
       <form class="panel" novalidate>
         <h1>학생 기록 보기</h1>
-        <p class="lead">내가 등록한 학생들의 진행률을 확인해요. 비밀번호를 다시 확인할게요.</p>
+        <p class="lead">내가 등록한 학생들의 진행률을 확인해요. 인증 코드를 다시 확인할게요.</p>
         <label class="field">
-          <span>선생님 비밀번호</span>
+          <span>선생님 인증 코드</span>
           <input id="dashboard-password" name="password" type="password" autocomplete="off"
-                 value="${escapeHtml(this.draftPassword)}">
+                 value="${escapeHtml(this.draftCode)}">
         </label>
         <p class="form-error" role="alert">${escapeHtml(error)}</p>
         <div class="row-buttons">
@@ -101,7 +100,7 @@ export class TeacherDashboard {
               const updated = formatUpdatedAt(s.updatedAt);
               return `
                 <li class="student-row">
-                  <span class="student-name">${escapeHtml(s.name)}</span>
+                  <span class="student-name">${escapeHtml(s.name)} <span class="student-code">코드 ${escapeHtml(s.code)}</span></span>
                   <span class="student-meta">
                     ${handLabel} · ${done}/${total} 배움 · ${escapeHtml(quizAverage(s.progress))}
                     ${updated.length > 0 ? `· ${escapeHtml(updated)} 갱신` : ''}
@@ -131,7 +130,7 @@ export class TeacherDashboard {
   private handleInput(e: Event): void {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
-    if (target.id === 'dashboard-password') this.draftPassword = target.value;
+    if (target.id === 'dashboard-password') this.draftCode = target.value;
   }
 
   private handleSubmit(e: Event): void {
@@ -153,9 +152,9 @@ export class TeacherDashboard {
       return;
     }
 
-    const password = passwordInput.value;
-    if (password.length === 0) {
-      this.state = { kind: 'error', message: '비밀번호를 입력해 주세요.' };
+    const code = passwordInput.value;
+    if (code.length === 0) {
+      this.state = { kind: 'error', message: '인증 코드를 입력해 주세요.' };
       this.render();
       return;
     }
@@ -168,14 +167,14 @@ export class TeacherDashboard {
     }
 
     try {
-      const result = await listStudents(teacher.name, password);
+      const result = await listStudents(code, teacher.name);
       if (result.kind === 'offline') {
         this.state = { kind: 'error', message: '지금은 확인할 수 없어요. 인터넷 연결을 확인해 주세요.' };
         this.render();
         return;
       }
       if (result.kind === 'auth_failed') {
-        this.state = { kind: 'error', message: '비밀번호가 달라요.' };
+        this.state = { kind: 'error', message: '인증 코드가 달라요.' };
         this.render();
         return;
       }

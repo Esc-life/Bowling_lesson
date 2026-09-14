@@ -1,36 +1,39 @@
 /**
- * 시작 화면 — 누가 플레이하는지 고른다.
+ * 시작 화면 — 로그인.
  *
- * 계정이 아니다. 공용 PC 한 대를 여러 학생이 쓸 때 진도와 손 설정이
- * 섞이지 않게 하는 것이 전부다.
+ * 계정은 교사만 만든다(TeacherRegister). 여기서는 학생이 그 코드로 로그인하거나,
+ * 교사가 인증 코드로 들어온다 — 둘 다 이 기기 로컬 목록에 남아 다음부터는
+ * 목록에서 골라 다시 인증(코드/인증 코드)하면 된다.
  *
  * 삭제는 진행률까지 함께 지우므로 두 단계로 확인한다. 영역 메뉴의
  * 초기화가 같은 방식이라 패턴을 맞췄다.
  */
 
-import { pullPlayer, pushPlayer, verifyTeacher, mergeProgress } from '../net/PlayerSync';
-import { checkName, MAX_NAME_LENGTH, players } from '../players/PlayerStore';
+import { loginStudent, mergeProgress, verifyTeacherCode } from '../net/PlayerSync';
+import { checkName, players } from '../players/PlayerStore';
 import type { Player } from '../players/types';
 import { lessonCount } from '../players/unlock';
 import type { Handedness } from '../rules/pinLayout';
 import { escapeHtml } from '../util/html';
 
+const CODE_LENGTH = 6;
+
+type EntryMode = 'student' | 'teacher';
+
 export class PlayerPicker {
   readonly element: HTMLElement;
   private mode: 'list' | 'create' = 'list';
   private pendingDelete: string | null = null;
-  /** 목록에서 PIN·교사 계정을 고를 때 비밀번호를 다시 묻는 중인 플레이어 id */
+  /** 목록에서 코드·교사 인증 코드를 다시 입력해 여는 중인 플레이어 id */
   private unlocking: string | null = null;
   private hand: Handedness = 'right';
   // render()가 innerHTML을 통째로 갈아 끼우므로(손 버튼을 누를 때마다),
-  // 입력 중이던 이름을 여기 보관했다가 다시 채운다 — 안 그러면 날아간다
-  private draftName = '';
-  private draftPin = '';
-  private draftTeacherPassword = '';
-  private showTeacherField = false;
-  /** "다른 기기와 이어서 쓰기" 스위치 — 꺼져 있으면 PIN 칸 자체가 안 보인다 */
-  private syncOn = false;
-  /** 이름+PIN 확인·교사 비밀번호 확인이 끝날 때까지 중복 제출을 막는다 */
+  // 입력 중이던 값을 여기 보관했다가 다시 채운다 — 안 그러면 날아간다
+  private entryMode: EntryMode = 'student';
+  private draftCode = '';
+  private draftTeacherName = '';
+  private draftTeacherCode = '';
+  /** 코드 확인·교사 인증이 끝날 때까지 중복 제출을 막는다 */
   private submitting = false;
 
   constructor(private readonly onDone: (player: Player) => void) {
@@ -39,7 +42,7 @@ export class PlayerPicker {
     this.element.addEventListener('click', (e) => this.handleClick(e));
     this.element.addEventListener('submit', (e) => this.handleSubmit(e));
     this.element.addEventListener('input', (e) => this.handleInput(e));
-    // 목록이 비어 있으면 곧장 만들기 화면으로 — 빈 목록을 보여 줄 이유가 없다
+    // 목록이 비어 있으면 곧장 로그인 화면으로 — 빈 목록을 보여 줄 이유가 없다
     this.mode = players.players.length === 0 ? 'create' : 'list';
     this.resetDraft();
     this.render();
@@ -60,28 +63,18 @@ export class PlayerPicker {
 
   // ---------------------------------------------------------------------------
 
-  /**
-   * 만들기 화면을 새것으로 되돌린다.
-   *
-   * 공용 PC라 앞사람이 고른 손이 남아 있으면 다음 학생이 그대로 시작해
-   * 뒤집힌 레인에서 배우게 된다. 손을 바꾸는 화면은 없다.
-   *
-   * 옛 버전에서 넘어오는 첫 학생에게만 그때 쓰던 손을 초기 선택으로
-   * 켜 준다. 어디까지나 초기 선택이라, 눌러서 바꾸면 그 값이 이긴다.
-   */
   private resetDraft(): void {
-    this.draftName = '';
-    this.draftPin = '';
-    this.draftTeacherPassword = '';
-    this.showTeacherField = false;
-    this.syncOn = false;
-    this.hand = players.pendingHandedness ?? 'right';
+    this.entryMode = 'student';
+    this.draftCode = '';
+    this.draftTeacherName = '';
+    this.draftTeacherCode = '';
+    this.hand = 'right';
   }
 
   private render(): void {
     this.element.innerHTML = this.mode === 'create' ? this.createHtml() : this.listHtml();
     if (this.mode === 'create') {
-      this.element.querySelector<HTMLInputElement>('#player-name')?.focus();
+      this.element.querySelector<HTMLInputElement>('#login-code')?.focus();
     } else {
       this.element.querySelector<HTMLInputElement>('#unlock-value')?.focus();
     }
@@ -96,7 +89,7 @@ export class PlayerPicker {
             const { done, total } = lessonCount(p);
             return `${done}/${total} 배움`;
           })();
-        const protectedAccount = p.isMaster === true || p.pin !== undefined;
+        const protectedAccount = p.isMaster === true || p.code !== undefined;
 
         if (this.unlocking === p.id) {
           return `
@@ -104,10 +97,10 @@ export class PlayerPicker {
               <form class="unlock-form" data-unlock-form="${p.id}">
                 <span class="unlock-name">${escapeHtml(p.name)}</span>
                 <label class="field">
-                  <span>${p.isMaster === true ? '비밀번호' : '번호 4자리'}</span>
+                  <span>${p.isMaster === true ? '인증 코드' : `코드 ${CODE_LENGTH}자리`}</span>
                   <input id="unlock-value" name="unlockValue"
                          type="${p.isMaster === true ? 'password' : 'text'}"
-                         ${p.isMaster === true ? '' : 'inputmode="numeric" pattern="[0-9]{4}" maxlength="4"'}
+                         ${p.isMaster === true ? '' : `inputmode="numeric" pattern="[0-9]{${CODE_LENGTH}}" maxlength="${CODE_LENGTH}"`}
                          autocomplete="off">
                 </label>
                 <p class="form-error unlock-error" role="alert"></p>
@@ -145,54 +138,49 @@ export class PlayerPicker {
       <div class="panel">
         <h1>누가 볼링을 칠까요?</h1>
         <ul class="player-list">${rows}</ul>
-        <button type="button" class="primary-btn" data-new="1">+ 새로 만들기</button>
+        <button type="button" class="primary-btn" data-new="1">+ 새로 로그인하기</button>
       </div>
     `;
   }
 
   private createHtml(): string {
     const first = players.players.length === 0;
-    const inherit = players.pendingMigration
-      ? '<p class="note">지금까지 배운 내용을 이어서 쓸게요.</p>'
-      : '';
+    const studentOn = this.entryMode === 'student';
     return `
       <form class="panel" novalidate>
-        <h1>${first ? '볼링을 시작해요' : '새 플레이어'}</h1>
-        <label class="field">
-          <span>이름</span>
-          <input id="player-name" name="name" type="text" maxlength="${MAX_NAME_LENGTH}"
-                 autocomplete="off" placeholder="이름을 적어 주세요" value="${escapeHtml(this.draftName)}">
-        </label>
+        <h1>${first ? '볼링을 시작해요' : '로그인'}</h1>
 
-        <div class="sync-block">
-          <button type="button" class="sync-toggle" data-sync-toggle="1" aria-pressed="${this.syncOn}">
-            <span class="sync-toggle-icon" aria-hidden="true">🔗</span>
-            <span class="sync-toggle-text">
-              <span class="sync-toggle-title">계정 정보 저장</span>
-              <span class="sync-toggle-sub">집·학교 등 여러 기기에서 이어서 배우고 싶으면 켜 주세요</span>
-            </span>
-            <span class="switch${this.syncOn ? ' is-on' : ''}" aria-hidden="true"><span class="switch-knob"></span></span>
+        <div class="hand-choices">
+          <button type="button" class="hand-choice${studentOn ? ' is-on' : ''}" data-mode="student">
+            <span class="hand-icon" aria-hidden="true">🎓</span>
+            <span class="hand-name">학생</span>
           </button>
-          <label class="field field--pin${this.syncOn ? '' : ' is-hidden'}" data-pin-field>
-            <span>번호 4자리를 만들어 주세요</span>
-            <input id="player-pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
-                   autocomplete="off" placeholder="다른 기기에서도 이 번호를 똑같이 입력해요"
-                   value="${escapeHtml(this.draftPin)}">
+          <button type="button" class="hand-choice${studentOn ? '' : ' is-on'}" data-mode="teacher">
+            <span class="hand-icon" aria-hidden="true">🍎</span>
+            <span class="hand-name">선생님</span>
+          </button>
+        </div>
+
+        <div data-mode-fields="student"${studentOn ? '' : ' hidden'}>
+          <p class="lead">선생님께 받은 로그인 코드를 입력해 주세요.</p>
+          <label class="field">
+            <span>로그인 코드 ${CODE_LENGTH}자리</span>
+            <input id="login-code" name="code" type="text" inputmode="numeric"
+                   pattern="[0-9]{${CODE_LENGTH}}" maxlength="${CODE_LENGTH}"
+                   autocomplete="off" value="${escapeHtml(this.draftCode)}">
           </label>
         </div>
 
-        <div class="sync-block">
-          <button type="button" class="sync-toggle teacher-toggle" data-teacher-toggle="1" aria-pressed="${this.showTeacherField}">
-            <span class="sync-toggle-icon" aria-hidden="true">🍎</span>
-            <span class="sync-toggle-text">
-              <span class="sync-toggle-title">선생님 계정이에요</span>
-            </span>
-            <span class="switch${this.showTeacherField ? ' is-on' : ''}" aria-hidden="true"><span class="switch-knob"></span></span>
-          </button>
-          <label class="field field--teacher${this.showTeacherField ? '' : ' is-hidden'}" data-teacher-field>
-            <span>비밀번호</span>
-            <input id="teacher-password" name="teacherPassword" type="password" autocomplete="off"
-                   placeholder="선생님 계정 비밀번호" value="${escapeHtml(this.draftTeacherPassword)}">
+        <div data-mode-fields="teacher"${studentOn ? ' hidden' : ''}>
+          <label class="field">
+            <span>선생님 성함</span>
+            <input id="teacher-name" name="teacherName" type="text" maxlength="12"
+                   autocomplete="off" placeholder="이름을 적어 주세요" value="${escapeHtml(this.draftTeacherName)}">
+          </label>
+          <label class="field">
+            <span>인증 코드</span>
+            <input id="teacher-code" name="teacherCode" type="password" autocomplete="off"
+                   value="${escapeHtml(this.draftTeacherCode)}">
           </label>
         </div>
 
@@ -208,10 +196,9 @@ export class PlayerPicker {
           </button>
         </div>
 
-        ${inherit}
         <p class="form-error" role="alert"></p>
         <div class="row-buttons">
-          <button type="submit" class="primary-btn">시작하기</button>
+          <button type="submit" class="primary-btn">${studentOn ? '로그인' : '확인'}</button>
           ${first ? '' : '<button type="button" class="text-btn" data-cancel="1">뒤로</button>'}
         </div>
       </form>
@@ -220,7 +207,7 @@ export class PlayerPicker {
 
   private handleClick(e: Event): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-teacher-toggle],[data-sync-toggle],[data-unlock-cancel]',
+      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-mode],[data-unlock-cancel]',
     );
     if (el === null) return;
     const d = el.dataset;
@@ -228,9 +215,9 @@ export class PlayerPicker {
     if (d['pick'] !== undefined) {
       const id = d['pick'];
       const target = players.players.find((p) => p.id === id);
-      // 공용 PC의 목록에 남아 있다는 이유만으로 남의 PIN 계정·교사 계정에
+      // 공용 PC의 목록에 남아 있다는 이유만으로 남의 코드 계정·교사 계정에
       // 그냥 들어가면 안 된다 — 고를 때마다 다시 확인한다.
-      if (target !== undefined && (target.pin !== undefined || target.isMaster === true)) {
+      if (target !== undefined && (target.code !== undefined || target.isMaster === true)) {
         this.unlocking = id;
         this.render();
         return;
@@ -238,8 +225,6 @@ export class PlayerPicker {
       players.select(id);
       const picked = players.current;
       if (picked !== null) {
-        // PIN이 있는 플레이어는 다른 기기에서 더 나아간 진행률이 있을 수 있으니
-        // 들어가기 전에 한 번 맞춰 본다 — 실패해도(오프라인 등) 로컬 그대로 진행한다.
         void this.syncOnEntry(picked).then((synced) => this.onDone(synced));
       }
       return;
@@ -249,14 +234,9 @@ export class PlayerPicker {
       this.render();
       return;
     }
-    if (d['teacherToggle'] !== undefined) {
-      this.showTeacherField = !this.showTeacherField;
-      this.updateTeacherField();
-      return;
-    }
-    if (d['syncToggle'] !== undefined) {
-      this.syncOn = !this.syncOn;
-      this.updateSyncBlock();
+    if (d['mode'] === 'student' || d['mode'] === 'teacher') {
+      this.entryMode = d['mode'];
+      this.updateModeFields();
       return;
     }
     if (d['new'] !== undefined) {
@@ -291,86 +271,61 @@ export class PlayerPicker {
     if (d['hand'] === 'left' || d['hand'] === 'right') {
       this.hand = d['hand'];
       // render() 전체를 다시 그리면 form 전체 innerHTML이 갈아 끼워져 화면이
-      // 깜박이고(입력 중인 이름 input도 새 DOM 노드가 돼 포커스가 끊긴다),
+      // 깜박이고(입력 중인 코드 input도 새 DOM 노드가 돼 포커스가 끊긴다),
       // 버튼 활성화 표시만 바뀌면 되므로 클래스만 옮긴다.
       this.updateHandButtons();
     }
   }
 
   private updateHandButtons(): void {
-    this.element.querySelectorAll<HTMLElement>('.hand-choice').forEach((btn) => {
+    this.element.querySelectorAll<HTMLElement>('[data-hand]').forEach((btn) => {
       btn.classList.toggle('is-on', btn.dataset['hand'] === this.hand);
     });
   }
 
-  /** 전체를 다시 그리지 않고 스위치 모양·비밀번호 칸만 갱신한다 (손 버튼과 같은 이유) */
-  private updateTeacherField(): void {
-    const toggle = this.element.querySelector<HTMLElement>('[data-teacher-toggle]');
-    toggle?.setAttribute('aria-pressed', String(this.showTeacherField));
-    toggle?.querySelector('.switch')?.classList.toggle('is-on', this.showTeacherField);
+  /** 탭 버튼 표시·필드 전환을 전체 재렌더 없이 갱신한다 (손 버튼과 같은 이유) */
+  private updateModeFields(): void {
+    this.element.querySelectorAll<HTMLElement>('[data-mode]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.dataset['mode'] === this.entryMode);
+    });
+    this.element.querySelectorAll<HTMLElement>('[data-mode-fields]').forEach((section) => {
+      section.hidden = section.dataset['modeFields'] !== this.entryMode;
+    });
 
-    const field = this.element.querySelector<HTMLElement>('[data-teacher-field]');
-    field?.classList.toggle('is-hidden', !this.showTeacherField);
+    const submitBtn = this.element.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submitBtn !== null) submitBtn.textContent = this.entryMode === 'student' ? '로그인' : '확인';
 
-    const passwordInput = this.element.querySelector<HTMLInputElement>('#teacher-password');
-    if (this.showTeacherField) {
-      passwordInput?.focus();
-    } else {
-      // 껐을 때 이미 입력해 둔 비밀번호를 지운다 — sync 스위치와 같은 이유
-      this.draftTeacherPassword = '';
-      if (passwordInput !== null) passwordInput.value = '';
-    }
-  }
+    const error = this.element.querySelector<HTMLElement>('.form-error');
+    if (error !== null) error.textContent = '';
 
-  /** 스위치 모양·PIN 칸을 전체 재렌더 없이 갱신한다 (손 버튼과 같은 이유로 깜빡임을 피한다) */
-  private updateSyncBlock(): void {
-    const toggle = this.element.querySelector<HTMLElement>('[data-sync-toggle]');
-    toggle?.setAttribute('aria-pressed', String(this.syncOn));
-    toggle?.querySelector('.switch')?.classList.toggle('is-on', this.syncOn);
-
-    const pinField = this.element.querySelector<HTMLElement>('[data-pin-field]');
-    pinField?.classList.toggle('is-hidden', !this.syncOn);
-
-    const pinInput = this.element.querySelector<HTMLInputElement>('#player-pin');
-    if (this.syncOn) {
-      pinInput?.focus();
-    } else {
-      // 껐을 때 이미 입력해 둔 번호를 지운다 — 꺼진 채로 남아 있으면 헷갈린다
-      this.draftPin = '';
-      if (pinInput !== null) pinInput.value = '';
-    }
+    const focusId = this.entryMode === 'student' ? '#login-code' : '#teacher-name';
+    this.element.querySelector<HTMLInputElement>(focusId)?.focus();
   }
 
   /**
-   * PIN이 있는 플레이어를 고를 때 원격 진행률과 한 번 맞춰 본다.
+   * 이미 이 기기에 있는 코드 계정을 고를 때 원격 진행률과 한 번 맞춰 본다.
    *
-   * 실패(오프라인·이름 충돌)해도 조용히 로컬 그대로 진행한다 — 여기서 오류를
-   * 띄우면 "그냥 이어서 하려던" 학생이 매번 막힌다. 새 이름과 PIN을 검증하는
-   * 만들기 화면과 달리, 여기는 이미 로컬에 있는 플레이어를 다시 여는 것뿐이다.
+   * 실패(오프라인 등)해도 조용히 로컬 그대로 진행한다 — 여기서 오류를 띄우면
+   * "그냥 이어서 하려던" 학생이 매번 막힌다.
    */
   private async syncOnEntry(player: Player): Promise<Player> {
-    if (player.pin === undefined) return player;
+    if (player.code === undefined) return player;
 
-    const pulled = await pullPlayer(player.name, player.pin);
+    const pulled = await loginStudent(player.code);
     if (pulled.kind === 'ok') {
       const merged = mergeProgress(player.progress, pulled.progress);
       players.saveProgress(player.id, merged);
       return players.current ?? player;
     }
-    if (pulled.kind === 'not_found') {
-      pushPlayer(player.name, player.pin, player.handedness, player.progress).catch(() => {
-        /* 다음 저장에서 다시 시도된다 */
-      });
-    }
     return player;
   }
 
   /**
-   * 목록에서 PIN·교사 계정을 골랐을 때 다시 입력한 비밀번호를 확인한다.
+   * 목록에서 코드·교사 계정을 골랐을 때 다시 입력한 값을 확인한다.
    *
-   * PIN 계정은 이 기기에 이미 저장된 값(player.pin)과 그대로 비교한다 —
-   * PIN은 실제 보안이 아니라 충돌 방지용이라 오프라인에서도 통과해야 한다.
-   * 교사 계정은 비밀번호를 로컬에 두지 않으므로 매번 서버로 확인한다.
+   * 학생 코드는 이 기기에 이미 저장된 값(player.code)과 그대로 비교한다 —
+   * 코드 자체가 유일한 로그인 수단이라 오프라인에서도 통과해야 한다.
+   * 교사 인증 코드는 로컬에 두지 않으므로 매번 서버로 확인한다.
    */
   private async confirmUnlock(id: string): Promise<void> {
     if (this.submitting) return;
@@ -390,9 +345,9 @@ export class PlayerPicker {
     }
 
     try {
-      const ok = player.isMaster === true ? await verifyTeacher(player.name, value) : value.length > 0 && value === player.pin;
+      const ok = player.isMaster === true ? await verifyTeacherCode(value) : value.length > 0 && value === player.code;
       if (!ok) {
-        if (error !== null) error.textContent = player.isMaster === true ? '비밀번호가 달라요.' : '번호가 달라요.';
+        if (error !== null) error.textContent = player.isMaster === true ? '인증 코드가 달라요.' : '코드가 달라요.';
         input?.focus();
         return;
       }
@@ -415,9 +370,9 @@ export class PlayerPicker {
   private handleInput(e: Event): void {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
-    if (target.id === 'player-name') this.draftName = target.value;
-    if (target.id === 'player-pin') this.draftPin = target.value;
-    if (target.id === 'teacher-password') this.draftTeacherPassword = target.value;
+    if (target.id === 'login-code') this.draftCode = target.value;
+    if (target.id === 'teacher-name') this.draftTeacherName = target.value;
+    if (target.id === 'teacher-code') this.draftTeacherCode = target.value;
   }
 
   private handleSubmit(e: Event): void {
@@ -434,31 +389,10 @@ export class PlayerPicker {
   private async submit(): Promise<void> {
     if (this.submitting) return;
 
-    const input = this.element.querySelector<HTMLInputElement>('#player-name');
-    const pinInput = this.element.querySelector<HTMLInputElement>('#player-pin');
-    const teacherInput = this.element.querySelector<HTMLInputElement>('#teacher-password');
     const error = this.element.querySelector<HTMLElement>('.form-error');
     const submitBtn = this.element.querySelector<HTMLButtonElement>('button[type="submit"]');
-    if (input === null || error === null) return;
+    if (error === null) return;
 
-    const check = checkName(input.value, players.players);
-    if (!check.ok) {
-      error.textContent = check.reason;
-      input.focus();
-      return;
-    }
-
-    const teacherPassword = teacherInput?.value.trim() ?? '';
-    const pin = this.syncOn ? (pinInput?.value.trim() ?? '') : '';
-
-    if (this.syncOn && !/^\d{4}$/.test(pin)) {
-      error.textContent = '번호 4자리를 숫자로 적어 주세요.';
-      pinInput?.focus();
-      return;
-    }
-
-    // 네트워크 확인이 끝날 때까지 버튼을 잠근다 — 화면 전체를 다시 그리지
-    // 않고 이 버튼 하나만 건드린다(손 버튼과 같은 이유로 깜빡임을 피한다).
     this.submitting = true;
     error.textContent = '';
     const originalLabel = submitBtn?.textContent ?? '';
@@ -468,39 +402,11 @@ export class PlayerPicker {
     }
 
     try {
-      if (teacherPassword.length > 0) {
-        const ok = await verifyTeacher(check.name, teacherPassword);
-        if (!ok) {
-          error.textContent = '이름이나 비밀번호가 달라요.';
-          return;
-        }
-        this.onDone(players.create(check.name, this.hand, { isMaster: true }));
-        return;
+      if (this.entryMode === 'teacher') {
+        await this.submitTeacher(error);
+      } else {
+        await this.submitStudent(error);
       }
-
-      if (pin.length > 0) {
-        const pulled = await pullPlayer(check.name, pin);
-        if (pulled.kind === 'pin_mismatch') {
-          error.textContent = '이미 사용 중인 이름이에요. PIN을 확인하거나 다른 이름을 써 주세요.';
-          return;
-        }
-        if (pulled.kind === 'ok') {
-          const merged = mergeProgress({ completedLessons: [], quizScores: {}, currentLessonId: null }, pulled.progress);
-          this.onDone(players.create(check.name, this.hand, { pin, progress: merged }));
-          return;
-        }
-        // not_found(새 이름) 또는 offline(설정 없음) — 이 기기 기준으로 새로 만든다
-        const created = players.create(check.name, this.hand, { pin });
-        if (pulled.kind === 'not_found') {
-          pushPlayer(check.name, pin, this.hand, created.progress).catch(() => {
-            /* 다음 저장에서 다시 시도된다 */
-          });
-        }
-        this.onDone(created);
-        return;
-      }
-
-      this.onDone(players.create(check.name, this.hand));
     } finally {
       this.submitting = false;
       if (submitBtn !== null) {
@@ -508,5 +414,67 @@ export class PlayerPicker {
         submitBtn.textContent = originalLabel;
       }
     }
+  }
+
+  private async submitStudent(error: HTMLElement): Promise<void> {
+    const codeInput = this.element.querySelector<HTMLInputElement>('#login-code');
+    const code = codeInput?.value.trim() ?? '';
+    if (!new RegExp(`^\\d{${CODE_LENGTH}}$`).test(code)) {
+      error.textContent = `로그인 코드 ${CODE_LENGTH}자리를 숫자로 적어 주세요.`;
+      codeInput?.focus();
+      return;
+    }
+
+    const pulled = await loginStudent(code);
+    if (pulled.kind === 'offline') {
+      error.textContent = '지금은 로그인할 수 없어요. 인터넷 연결을 확인해 주세요.';
+      return;
+    }
+    if (pulled.kind === 'not_found') {
+      error.textContent = '코드가 달라요. 선생님께 다시 확인해 주세요.';
+      return;
+    }
+
+    // 이 기기에 이미 있는 계정이면 이어서 쓴다 — 새로 만들면 목록에 같은
+    // 학생이 두 줄로 남는다.
+    const existing = players.findByCode(code);
+    if (existing !== null) {
+      const merged = mergeProgress(existing.progress, pulled.progress);
+      players.saveProgress(existing.id, merged);
+      players.select(existing.id);
+      this.onDone(players.current ?? existing);
+      return;
+    }
+
+    const merged = mergeProgress({ completedLessons: [], quizScores: {}, currentLessonId: null }, pulled.progress);
+    const name = pulled.name.length > 0 ? pulled.name : '학생';
+    this.onDone(players.create(name, this.hand, { code, progress: merged }));
+  }
+
+  private async submitTeacher(error: HTMLElement): Promise<void> {
+    const nameInput = this.element.querySelector<HTMLInputElement>('#teacher-name');
+    const codeInput = this.element.querySelector<HTMLInputElement>('#teacher-code');
+
+    const check = checkName(nameInput?.value ?? '', players.players);
+    if (!check.ok) {
+      error.textContent = check.reason;
+      nameInput?.focus();
+      return;
+    }
+
+    const code = codeInput?.value.trim() ?? '';
+    if (code.length === 0) {
+      error.textContent = '인증 코드를 입력해 주세요.';
+      codeInput?.focus();
+      return;
+    }
+
+    const ok = await verifyTeacherCode(code);
+    if (!ok) {
+      error.textContent = '인증 코드가 달라요.';
+      return;
+    }
+
+    this.onDone(players.create(check.name, this.hand, { isMaster: true }));
   }
 }

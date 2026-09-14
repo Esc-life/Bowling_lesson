@@ -1,30 +1,32 @@
 /**
- * 이름+PIN 기기 간 진행률 동기화 + 마스터(교사) 계정 인증.
+ * 학생 코드 로그인 + 진행률 동기화 + 교사 인증.
  *
  * 온라인 대전(supabaseClient.ts)과 같은 원칙 — Supabase 설정이 없는 환경(막
  * 클론한 저장소, .env.local 없음)에서도 앱이 죽으면 안 된다. 실패는 전부
  * 조용한 값으로 돌아오고, 호출부(PlayerPicker)가 안내 문구로 대신한다.
  *
- * 병합(merge)은 여기 TypeScript에서 한다 — SQL 함수(pull_player/push_player,
- * supabase/sql/2026-08-01-players-sync.sql)는 순수 CRUD만 하고 무엇을 남길지는
- * 정하지 않는다. SQL로 짠 병합 로직은 검증하기 어렵다.
+ * 계정은 교사만 만든다(registerStudent). 학생은 이름을 직접 입력하지 않고
+ * 교사가 발급한 코드 하나로 로그인한다(loginStudent) — 예전의 "이름+PIN" 쌍과
+ * 달리 코드 자체가 유일한 로그인 수단이다. 병합(merge)은 여기 TypeScript에서
+ * 한다 — SQL 함수(supabase/sql/2026-09-15-teacher-code-login.sql)는 순수 CRUD만
+ * 하고 무엇을 남길지는 정하지 않는다. SQL로 짠 병합 로직은 검증하기 어렵다.
  */
 
 import type { Handedness } from '../rules/pinLayout';
 import type { ProgressState, QuizScore } from '../tutorial/TutorialFlow';
 import { getSupabaseClient } from './supabaseClient';
 
-export type PullResult =
+export type LoginResult =
   | { kind: 'offline' }
   | { kind: 'not_found' }
-  | { kind: 'pin_mismatch' }
-  | { kind: 'ok'; handedness: Handedness; progress: ProgressState };
+  | { kind: 'ok'; name: string; handedness: Handedness; progress: ProgressState };
 
 export type PushResult = { ok: true } | { ok: false; error: string };
 
-export type RegisterStudentResult = { ok: true } | { ok: false; error: string };
+export type RegisterStudentResult = { ok: true; code: string } | { ok: false; error: string };
 
 export type StudentRecord = {
+  code: string;
   name: string;
   handedness: Handedness;
   progress: ProgressState;
@@ -95,37 +97,37 @@ export function mergeProgress(local: ProgressState, remote: ProgressState): Prog
   return { completedLessons, quizScores, currentLessonId: local.currentLessonId ?? remote.currentLessonId };
 }
 
-export async function pullPlayer(name: string, pin: string): Promise<PullResult> {
+/** 교사가 발급한 코드로 로그인한다. 이름은 서버가 돌려준다(학생이 직접 입력하지 않는다) */
+export async function loginStudent(code: string): Promise<LoginResult> {
   const supabase = await getSupabaseClient();
   if (supabase === null) return { kind: 'offline' };
 
-  const { data, error } = await supabase.rpc('pull_player', { p_name: name, p_pin: pin });
+  const { data, error } = await supabase.rpc('login_student', { p_code: code });
   if (error !== null || data === null) return { kind: 'offline' };
 
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
   if (row === undefined || row['found'] !== true) return { kind: 'not_found' };
-  if (row['pin_ok'] !== true) return { kind: 'pin_mismatch' };
 
+  const name = row['name'];
   const handedness = row['handedness'];
   return {
     kind: 'ok',
+    name: typeof name === 'string' ? name : '',
     handedness: isHandedness(handedness) ? handedness : 'right',
     progress: sanitizeRemoteProgress(row['progress']),
   };
 }
 
-export async function pushPlayer(
-  name: string,
-  pin: string,
+export async function saveStudentProgress(
+  code: string,
   handedness: Handedness,
   progress: ProgressState,
 ): Promise<PushResult> {
   const supabase = await getSupabaseClient();
   if (supabase === null) return { ok: false, error: 'offline' };
 
-  const { data, error } = await supabase.rpc('push_player', {
-    p_name: name,
-    p_pin: pin,
+  const { data, error } = await supabase.rpc('save_student_progress', {
+    p_code: code,
     p_handedness: handedness,
     p_progress: progress,
   });
@@ -139,31 +141,29 @@ export async function pushPlayer(
   return { ok: true };
 }
 
-/** 실패(설정 없음/이름·비밀번호 불일치)는 모두 false — 어느 쪽이 틀렸는지 구분해 알려주지 않는다 */
-export async function verifyTeacher(name: string, password: string): Promise<boolean> {
+/** 실패(설정 없음/코드 틀림)는 모두 false — 계정을 미리 등록해 둘 필요가 없는 공유 코드다 */
+export async function verifyTeacherCode(code: string): Promise<boolean> {
   const supabase = await getSupabaseClient();
   if (supabase === null) return false;
 
-  const { data, error } = await supabase.rpc('verify_teacher', { p_name: name, p_password: password });
+  const { data, error } = await supabase.rpc('verify_teacher_code', { p_code: code });
   if (error !== null) return false;
   return data === true;
 }
 
-/** 교사가 학생 계정을 미리 만든다. 교사 비밀번호는 매번 서버에서 새로 검증한다(캐시하지 않는다) */
+/** 교사가 학생 계정을 만든다. 로그인 코드는 서버가 무작위로 만들어 돌려준다 */
 export async function registerStudent(
+  teacherCode: string,
   teacherName: string,
-  teacherPassword: string,
   studentName: string,
-  pin: string,
 ): Promise<RegisterStudentResult> {
   const supabase = await getSupabaseClient();
   if (supabase === null) return { ok: false, error: 'offline' };
 
   const { data, error } = await supabase.rpc('register_student', {
+    p_teacher_code: teacherCode,
     p_teacher_name: teacherName,
-    p_teacher_password: teacherPassword,
     p_student_name: studentName,
-    p_pin: pin,
   });
   if (error !== null || data === null) return { ok: false, error: 'offline' };
 
@@ -172,17 +172,18 @@ export async function registerStudent(
     const reason = row?.['error'];
     return { ok: false, error: typeof reason === 'string' ? reason : 'unknown' };
   }
-  return { ok: true };
+  const code = row['code'];
+  return { ok: true, code: typeof code === 'string' ? code : '' };
 }
 
-/** 그 교사가 register_student로 만든 학생들의 진행률을 돌려준다 */
-export async function listStudents(teacherName: string, teacherPassword: string): Promise<ListStudentsResult> {
+/** 그 교사가 register_student로 만든 학생들의 코드·진행률을 돌려준다 */
+export async function listStudents(teacherCode: string, teacherName: string): Promise<ListStudentsResult> {
   const supabase = await getSupabaseClient();
   if (supabase === null) return { kind: 'offline' };
 
   const { data, error } = await supabase.rpc('list_students', {
+    p_teacher_code: teacherCode,
     p_teacher_name: teacherName,
-    p_teacher_password: teacherPassword,
   });
   if (error !== null || data === null) return { kind: 'offline' };
 
@@ -191,10 +192,13 @@ export async function listStudents(teacherName: string, teacherPassword: string)
   if (rows[0]?.['ok'] !== true) return { kind: 'auth_failed' };
 
   const students: StudentRecord[] = rows.map((row) => {
+    const code = row['code'];
+    const name = row['name'];
     const handedness = row['handedness'];
     const updatedAt = row['updated_at'];
     return {
-      name: typeof row['name'] === 'string' ? row['name'] : '',
+      code: typeof code === 'string' ? code : '',
+      name: typeof name === 'string' ? name : '',
       handedness: isHandedness(handedness) ? handedness : 'right',
       progress: sanitizeRemoteProgress(row['progress']),
       updatedAt: typeof updatedAt === 'string' ? updatedAt : '',

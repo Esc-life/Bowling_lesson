@@ -12,7 +12,7 @@
  * 옛 값은 그 화면의 초기 선택(pendingHandedness)으로만 쓴다.
  */
 
-import { pushPlayer } from '../net/PlayerSync';
+import { saveStudentProgress } from '../net/PlayerSync';
 import type { Handedness } from '../rules/pinLayout';
 import { emptyProgress, type ProgressState, type QuizScore } from '../tutorial/TutorialFlow';
 import type { Player, StorageLike } from './types';
@@ -123,7 +123,7 @@ function sanitizePlayer(v: unknown): Player | null {
   if (typeof id !== 'string' || id.length === 0) return null;
   if (typeof name !== 'string' || name.trim().length === 0) return null;
   if (hand !== 'left' && hand !== 'right') return null;
-  const pin = o['pin'];
+  const code = o['code'];
   const isMaster = o['isMaster'];
   return {
     id,
@@ -131,7 +131,7 @@ function sanitizePlayer(v: unknown): Player | null {
     handedness: hand,
     progress: sanitizeProgress(o['progress']),
     createdAt: typeof o['createdAt'] === 'number' ? o['createdAt'] : 0,
-    ...(typeof pin === 'string' && pin.length > 0 ? { pin } : {}),
+    ...(typeof code === 'string' && code.length > 0 ? { code } : {}),
     ...(isMaster === true ? { isMaster: true } : {}),
   };
 }
@@ -187,7 +187,7 @@ export class PlayerStore {
   create(
     rawName: string,
     handedness: Handedness,
-    opts: { pin?: string; isMaster?: boolean; progress?: ProgressState } = {},
+    opts: { code?: string; isMaster?: boolean; progress?: ProgressState } = {},
   ): Player {
     const check = checkName(rawName, this.list);
     if (!check.ok) throw new Error(check.reason);
@@ -204,7 +204,7 @@ export class PlayerStore {
       handedness,
       progress: opts.progress ?? inherited?.progress ?? emptyProgress(),
       createdAt: Date.now(),
-      ...(opts.pin !== undefined ? { pin: opts.pin } : {}),
+      ...(opts.code !== undefined ? { code: opts.code } : {}),
       ...(opts.isMaster === true ? { isMaster: true } : {}),
     };
 
@@ -233,10 +233,10 @@ export class PlayerStore {
     player.progress = progress;
     this.persist();
 
-    // PIN을 등록한 플레이어만 원격에도 올린다. await 하지 않는다 — 오프라인이거나
-    // 느려도 수업(저장 자체)이 멈추면 안 된다. 실패는 조용히 버린다.
-    if (player.pin !== undefined) {
-      pushPlayer(player.name, player.pin, player.handedness, progress).catch(() => {
+    // 코드가 있는(=교사가 등록한) 플레이어만 원격에도 올린다. await 하지 않는다 —
+    // 오프라인이거나 느려도 수업(저장 자체)이 멈추면 안 된다. 실패는 조용히 버린다.
+    if (player.code !== undefined) {
+      saveStudentProgress(player.code, player.handedness, progress).catch(() => {
         /* 다음 저장이나 다음 접속에서 다시 시도된다 */
       });
     }
@@ -245,6 +245,10 @@ export class PlayerStore {
   findByName(name: string): Player | null {
     const trimmed = name.trim();
     return this.list.find((p) => p.name === trimmed) ?? null;
+  }
+
+  findByCode(code: string): Player | null {
+    return this.list.find((p) => p.code === code) ?? null;
   }
 
   subscribe(fn: Listener): () => void {

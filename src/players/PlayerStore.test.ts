@@ -313,6 +313,20 @@ describe('PlayerStore — 깨진 데이터', () => {
   });
 });
 
+describe('PlayerStore — findByCode', () => {
+  it('코드로 찾는다', () => {
+    const store = new PlayerStore(memoryStorage());
+    const p = store.create('민준', 'right', { code: '482913' });
+    expect(store.findByCode('482913')?.id).toBe(p.id);
+  });
+
+  it('없는 코드는 null', () => {
+    const store = new PlayerStore(memoryStorage());
+    store.create('민준', 'right', { code: '482913' });
+    expect(store.findByCode('000000')).toBeNull();
+  });
+});
+
 describe('PlayerStore — 구독', () => {
   it('바뀔 때마다 알린다', () => {
     const store = new PlayerStore(memoryStorage());

@@ -1,9 +1,8 @@
 /**
  * 교사 계정 전용 — 자신이 register_student로 만든 학생들의 진행률을 본다.
  *
- * TeacherRegister와 같은 원칙 — 인증 코드는 여기서도 매번 새로 입력받아
- * 서버(list_students RPC)에서 검증한다. 학생 로그인 코드도 같이 보여줘서
- * 잃어버렸을 때 다시 알려줄 수 있게 한다.
+ * 교사 인증 코드는 로그인할 때(PlayerPicker) 이미 확인해 `players.current`에
+ * 저장돼 있다 — 여기서 또 묻지 않고 그 값으로 열자마자 바로 불러온다.
  */
 
 import { listStudents, type StudentRecord } from '../net/PlayerSync';
@@ -33,29 +32,28 @@ function formatUpdatedAt(iso: string): string {
   return date.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+type State =
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ok'; students: StudentRecord[] };
+
 export class TeacherDashboard {
   readonly element: HTMLElement;
-  private draftCode = '';
-  private submitting = false;
-  private state: { kind: 'form' } | { kind: 'error'; message: string } | { kind: 'ok'; students: StudentRecord[] } = {
-    kind: 'form',
-  };
+  private state: State = { kind: 'loading' };
 
   constructor(private readonly onClose: () => void) {
     this.element = document.createElement('div');
     this.element.className = 'overlay teacher-dashboard';
     this.element.hidden = true;
     this.element.addEventListener('click', (e) => this.handleClick(e));
-    this.element.addEventListener('submit', (e) => this.handleSubmit(e));
-    this.element.addEventListener('input', (e) => this.handleInput(e));
     this.render();
   }
 
   show(): void {
-    this.draftCode = '';
-    this.state = { kind: 'form' };
+    this.state = { kind: 'loading' };
     this.element.hidden = false;
     this.render();
+    void this.load();
   }
 
   hide(): void {
@@ -63,32 +61,32 @@ export class TeacherDashboard {
   }
 
   private render(): void {
-    this.element.innerHTML = this.state.kind === 'ok' ? this.listHtml(this.state.students) : this.formHtml();
-    if (this.state.kind !== 'ok') {
-      this.element.querySelector<HTMLInputElement>('#dashboard-password')?.focus();
-    }
+    this.element.innerHTML =
+      this.state.kind === 'ok'
+        ? this.listHtml(this.state.students)
+        : this.state.kind === 'error'
+          ? this.errorHtml(this.state.message)
+          : this.loadingHtml();
   }
 
-  private formHtml(): string {
-    const error = this.state.kind === 'error' ? this.state.message : '';
+  private loadingHtml(): string {
     return `
-      <form class="panel" novalidate>
-        <h1>학생 기록 보기</h1>
-        <p class="lead">내가 등록한 학생들의 진행률을 확인해요. 인증 코드를 다시 확인할게요.</p>
-        <label class="field field--code">
-          <span>선생님 인증 코드</span>
-          <span class="input-with-toggle">
-            <input id="dashboard-password" name="password" type="password" autocomplete="off"
-                   value="${escapeHtml(this.draftCode)}">
-            <button type="button" class="input-toggle" data-toggle-visibility="dashboard-password" aria-label="입력한 코드 보기">👁</button>
-          </span>
-        </label>
-        <p class="form-error" role="alert">${escapeHtml(error)}</p>
+      <div class="panel">
+        <h1>학생 기록</h1>
+        <p class="lead">불러오는 중…</p>
+      </div>
+    `;
+  }
+
+  private errorHtml(message: string): string {
+    return `
+      <div class="panel">
+        <h1>학생 기록</h1>
+        <p class="form-error" role="alert">${escapeHtml(message)}</p>
         <div class="row-buttons">
-          <button type="submit" class="primary-btn">확인</button>
           <button type="button" class="text-btn" data-close="1">닫기</button>
         </div>
-      </form>
+      </div>
     `;
   }
 
@@ -125,81 +123,31 @@ export class TeacherDashboard {
   }
 
   private handleClick(e: Event): void {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close],[data-toggle-visibility]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close]');
     if (el === null) return;
-    const d = el.dataset;
-
-    if (d['toggleVisibility'] !== undefined) {
-      const input = this.element.querySelector<HTMLInputElement>(`#${d['toggleVisibility']}`);
-      if (input === null) return;
-      const showing = input.type === 'text';
-      input.type = showing ? 'password' : 'text';
-      el.textContent = showing ? '👁' : '🙈';
-      input.focus();
-      return;
-    }
     this.onClose();
   }
 
-  private handleInput(e: Event): void {
-    const target = e.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    if (target.id === 'dashboard-password') this.draftCode = target.value;
-  }
-
-  private handleSubmit(e: Event): void {
-    e.preventDefault();
-    void this.submit();
-  }
-
-  private async submit(): Promise<void> {
-    if (this.submitting) return;
-
-    const passwordInput = this.element.querySelector<HTMLInputElement>('#dashboard-password');
-    const submitBtn = this.element.querySelector<HTMLButtonElement>('button[type="submit"]');
-    if (passwordInput === null) return;
-
+  private async load(): Promise<void> {
     const teacher = players.current;
-    if (teacher === null || teacher.isMaster !== true) {
+    if (teacher === null || teacher.isMaster !== true || teacher.teacherCode === undefined) {
       this.state = { kind: 'error', message: '선생님 계정으로 다시 들어와 주세요.' };
       this.render();
       return;
     }
 
-    const code = passwordInput.value;
-    if (code.length === 0) {
-      this.state = { kind: 'error', message: '인증 코드를 입력해 주세요.' };
+    const result = await listStudents(teacher.teacherCode, teacher.name);
+    if (result.kind === 'offline') {
+      this.state = { kind: 'error', message: '지금은 확인할 수 없어요. 인터넷 연결을 확인해 주세요.' };
       this.render();
       return;
     }
-
-    this.submitting = true;
-    const originalLabel = submitBtn?.textContent ?? '';
-    if (submitBtn !== null) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = '확인하는 중…';
-    }
-
-    try {
-      const result = await listStudents(code, teacher.name);
-      if (result.kind === 'offline') {
-        this.state = { kind: 'error', message: '지금은 확인할 수 없어요. 인터넷 연결을 확인해 주세요.' };
-        this.render();
-        return;
-      }
-      if (result.kind === 'auth_failed') {
-        this.state = { kind: 'error', message: '인증 코드가 달라요.' };
-        this.render();
-        return;
-      }
-      this.state = { kind: 'ok', students: result.students };
+    if (result.kind === 'auth_failed') {
+      this.state = { kind: 'error', message: '인증 코드가 달라요. 선생님 계정으로 다시 들어와 주세요.' };
       this.render();
-    } finally {
-      this.submitting = false;
-      if (submitBtn !== null) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalLabel;
-      }
+      return;
     }
+    this.state = { kind: 'ok', students: result.students };
+    this.render();
   }
 }

@@ -338,7 +338,9 @@ export class PlayerPicker {
    *
    * 학생 코드는 이 기기에 이미 저장된 값(player.code)과 그대로 비교한다 —
    * 코드 자체가 유일한 로그인 수단이라 오프라인에서도 통과해야 한다.
-   * 교사 인증 코드는 로컬에 두지 않으므로 매번 서버로 확인한다.
+   * 교사 인증 코드는 로그인할 때(여기)만 서버로 확인한다 — 통과하면
+   * PlayerStore에 저장해 두어, 로그인 뒤에 쓰는 학생 등록·학생 기록 조회는
+   * 코드를 또 묻지 않고 이 값을 그대로 재사용한다.
    */
   private async confirmUnlock(id: string): Promise<void> {
     if (this.submitting) return;
@@ -364,6 +366,7 @@ export class PlayerPicker {
         input?.focus();
         return;
       }
+      if (player.isMaster === true) players.setTeacherCode(id, value);
       this.unlocking = null;
       players.select(id);
       const picked = players.current;
@@ -488,6 +491,6 @@ export class PlayerPicker {
       return;
     }
 
-    this.onDone(players.create(check.name, this.hand, { isMaster: true }));
+    this.onDone(players.create(check.name, this.hand, { isMaster: true, teacherCode: code }));
   }
 }

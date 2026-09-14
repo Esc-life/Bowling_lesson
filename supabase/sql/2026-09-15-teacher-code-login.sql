@@ -8,11 +8,13 @@
 --     서버가 만들어 준 6자리 숫자 코드 하나로만 로그인한다(login_student) — 이름+PIN
 --     쌍이 아니라 코드 자체가 유일한 로그인 수단이다.
 --   - 교사인지 확인하는 절차는 이름+비밀번호를 미리 등록해 두는 teacher_accounts 테이블이
---     아니라, 공유 코드 'gusanteacher'를 그대로 입력받아 비교하는 것으로 바꾼다
---     (verify_teacher_code) — 교사마다 계정을 미리 만들어 둘 필요가 없다. 교사를
---     구분하는 이름(teacher_name)은 여전히 필요하지만, 그 이름은 어디에도 미리
---     등록하지 않고 매번 자유롭게 입력한다 — "학생 목록을 누구 것으로 볼지" 구분표일
---     뿐이다.
+--     아니라, 공유 코드를 그대로 입력받아 비교하는 것으로 바꾼다(verify_teacher_code) —
+--     교사마다 계정을 미리 만들어 둘 필요가 없다. 교사를 구분하는 이름(teacher_name)은
+--     여전히 필요하지만, 그 이름은 어디에도 미리 등록하지 않고 매번 자유롭게 입력한다 —
+--     "학생 목록을 누구 것으로 볼지" 구분표일 뿐이다. 공유 코드 값 자체는
+--     is_teacher_code() 함수 하나에만 있다 — 나중에 코드를 바꿀 때 여러 함수를
+--     찾아 고치지 않게 한다(코드를 gs!@로 바꾼 내역은
+--     2026-09-16-teacher-code-value.sql 참고).
 --   - 실기 확인 결과 이 앱에 저장된 학생 데이터가 거의 없어(테스트 더미뿐) 기존 테이블을
 --     지우고 새로 만든다. 실제 학생이 있는 배포라면 이 DROP 전에 마이그레이션이 필요하다.
 --
@@ -103,6 +105,17 @@ grant execute on function public.save_student_progress(text, text, jsonb) to ano
 
 -- ---------------------------------------------------------------- 교사 인증 + 학생 등록
 
+-- 공유 코드 값이 있는 유일한 곳. register_student·list_students·verify_teacher_code가
+-- 전부 이 함수 하나만 부른다 — 코드를 바꿀 때 2026-09-16-teacher-code-value.sql처럼
+-- 이 함수 하나만 다시 만들면 된다(테이블은 그대로 둔 채로).
+create or replace function public.is_teacher_code(p_code text)
+returns boolean
+language sql
+immutable
+as $$
+  select p_code = 'gs!@';
+$$;
+
 -- 교사인지 확인하는 절차 전체 — 공유 코드 하나를 그대로 비교한다. 저장할 대상이
 -- 없으므로(모든 교사가 같은 코드를 쓴다) 테이블 조회가 없다.
 create or replace function public.verify_teacher_code(p_code text)
@@ -111,7 +124,7 @@ language sql
 security definer
 set search_path = public, extensions
 as $$
-  select p_code = 'gusanteacher';
+  select public.is_teacher_code(p_code);
 $$;
 
 grant execute on function public.verify_teacher_code(text) to anon;
@@ -131,7 +144,7 @@ declare
   v_code text;
   v_tries int := 0;
 begin
-  if p_teacher_code <> 'gusanteacher' then
+  if not public.is_teacher_code(p_teacher_code) then
     return query select false, null::text, 'teacher_auth_failed';
     return;
   end if;
@@ -168,7 +181,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if p_teacher_code <> 'gusanteacher' then
+  if not public.is_teacher_code(p_teacher_code) then
     return query select false, null::text, null::text, null::text, null::jsonb, null::timestamptz;
     return;
   end if;

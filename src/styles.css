@@ -1696,22 +1696,27 @@ button:disabled {
 .student-code { font-weight: 400; font-size: 0.8rem; opacity: 0.7; }
 .student-meta { font-size: 0.8rem; opacity: 0.75; }
 
-/* 교사가 학생을 등록하면 알려줄 번호를 크게 보여준다 — 받아 적어야 하니까 */
-.student-pin-display {
-  font-family: var(--font-display);
-  font-size: 3rem;
-  letter-spacing: 0.2em;
-  color: var(--ball-blue-deep);
-  margin: 0.4rem 0 0.8rem;
-}
 .field { display: grid; gap: 0.3rem; margin-block: 0.8rem; }
-.field input {
+.field input, .field textarea {
   padding: 0.6rem 0.8rem; border-radius: 0.6rem; font-size: 1.05rem;
   border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.25); color: inherit;
-  width: 100%;
+  width: 100%; font-family: inherit;
 }
+.field textarea { resize: vertical; line-height: 1.5; }
 .form-error { min-height: 1.2em; color: #ffb4a8; font-size: 0.85rem; margin: 0.3rem 0; }
 .row-buttons { display: flex; gap: 0.6rem; align-items: center; }
+
+/* 학생 일괄 등록 결과 — 이름과 코드를 나란히 보여줘 받아 적기 쉽게 한다.
+   생김새는 학생 기록 목록(.student-list/.student-row)과 맞췄다. */
+.register-list { list-style: none; margin: 0.8rem 0; padding: 0; display: grid; gap: 0.5rem; max-height: 50vh; overflow-y: auto; }
+.register-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  padding: 0.6rem 0.9rem; border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.register-row--error { background: rgba(226, 72, 63, 0.15); border-color: rgba(226, 72, 63, 0.35); }
+.register-code { font-family: var(--font-display); font-size: 1.3rem; letter-spacing: 0.3rem; color: var(--ball-blue-deep); }
+.register-error { font-size: 0.85rem; color: #ffb4a8; }
 
 /* 학생/선생님 로그인 탭 — 알약 모양 세그먼트 컨트롤. 바로 아래 왼손/오른손
    손 고르기와 똑같은 큰 아이콘 버튼을 그대로 재사용했더니(첫 시도) 한 화면에
@@ -1730,8 +1735,8 @@ button:disabled {
 .entry-tab:hover { opacity: 0.8; background: rgba(255, 255, 255, 0.35); transform: none; }
 .entry-tab.is-on { opacity: 1; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15); }
 
-/* 6자리 코드 입력칸 — 학생 번호를 크게 보여주는 .student-pin-display와 같은
-   서체·자간을 써서 숫자를 또박또박 읽고 확인하기 쉽게 한다. */
+/* 6자리 코드 입력칸 — 학생 등록 결과의 .register-code와 같은 서체·자간을 써서
+   숫자를 또박또박 읽고 확인하기 쉽게 한다. */
 .field--code input {
   text-align: center; font-family: var(--font-display); font-size: 1.4rem;
   letter-spacing: 0.4rem; padding-block: 0.9rem;

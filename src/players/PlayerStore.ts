@@ -125,6 +125,7 @@ function sanitizePlayer(v: unknown): Player | null {
   if (hand !== 'left' && hand !== 'right') return null;
   const code = o['code'];
   const isMaster = o['isMaster'];
+  const teacherCode = o['teacherCode'];
   return {
     id,
     name: name.trim(),
@@ -133,6 +134,7 @@ function sanitizePlayer(v: unknown): Player | null {
     createdAt: typeof o['createdAt'] === 'number' ? o['createdAt'] : 0,
     ...(typeof code === 'string' && code.length > 0 ? { code } : {}),
     ...(isMaster === true ? { isMaster: true } : {}),
+    ...(typeof teacherCode === 'string' && teacherCode.length > 0 ? { teacherCode } : {}),
   };
 }
 
@@ -187,7 +189,7 @@ export class PlayerStore {
   create(
     rawName: string,
     handedness: Handedness,
-    opts: { code?: string; isMaster?: boolean; progress?: ProgressState } = {},
+    opts: { code?: string; isMaster?: boolean; teacherCode?: string; progress?: ProgressState } = {},
   ): Player {
     const check = checkName(rawName, this.list);
     if (!check.ok) throw new Error(check.reason);
@@ -206,6 +208,7 @@ export class PlayerStore {
       createdAt: Date.now(),
       ...(opts.code !== undefined ? { code: opts.code } : {}),
       ...(opts.isMaster === true ? { isMaster: true } : {}),
+      ...(opts.teacherCode !== undefined ? { teacherCode: opts.teacherCode } : {}),
     };
 
     if (inherited !== null) {
@@ -249,6 +252,18 @@ export class PlayerStore {
 
   findByCode(code: string): Player | null {
     return this.list.find((p) => p.code === code) ?? null;
+  }
+
+  /**
+   * 로그인 때 확인한 교사 인증 코드를 저장해 둔다. 계정을 고를 때마다(로그인)
+   * 한 번씩 다시 확인하지만, 그 뒤 학생 등록·학생 기록 조회는 이 값을 그대로
+   * 재사용해 코드를 또 묻지 않는다.
+   */
+  setTeacherCode(id: string, teacherCode: string): void {
+    const player = this.list.find((p) => p.id === id);
+    if (player === undefined) throw new Error(`없는 플레이어입니다: ${id}`);
+    player.teacherCode = teacherCode;
+    this.persist();
   }
 
   subscribe(fn: Listener): () => void {

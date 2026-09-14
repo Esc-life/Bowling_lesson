@@ -90,7 +90,9 @@ export function renderLaneTop(opts: LaneTopOptions, hand: Handedness): HTMLEleme
       const ax = toX(arrowX(i, hand));
       const az = ARROWS.nearZ + (1 - Math.abs(i - 4) / 3) * (ARROWS.farZ - ARROWS.nearZ);
       const isTarget = i === TARGET_ARROW;
-      ctx.fillStyle = isTarget ? '#e8623c' : '#f0e6d2';
+      // 실제 3D 레인과 같은 이유로 색은 구분하지 않는다(사용자 피드백 —
+      // 조준을 방해한다) — 크기만 다르게 그린다.
+      ctx.fillStyle = '#f0e6d2';
       triangleUp(ctx, ax, toY(az) + (isTarget ? 9 : 7), isTarget ? 7 : 5, isTarget ? 18 : 14);
       ctx.fill();
     }

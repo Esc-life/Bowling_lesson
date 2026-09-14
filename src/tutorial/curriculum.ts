@@ -354,12 +354,12 @@ export const CURRICULUM: Area[] = [
         body: [
           { kind: 'text', text: '바닥에 화살표가 일곱 개 있어요.' },
           { kind: 'text', text: '멀리 있는 핀보다 가까운 화살표가 맞히기 쉬워요.' },
-          { kind: 'callout', text: '주황색 화살표를 지나가게 굴려 보세요.' },
+          { kind: 'callout', text: '다른 화살표보다 조금 더 큰 화살표를 지나가게 굴려 보세요.' },
         ],
         diagram: { kind: 'laneTop', showArrows: true, showBoards: true },
         check: {
           kind: 'drill',
-          setup: { standingPins: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hint: '주황색 화살표 위를 지나가게 던져요.' },
+          setup: { standingPins: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hint: '더 큰 화살표 위를 지나가게 던져요.' },
           goal: { kind: 'pocketHit', times: 1 },
           attempts: 5,
           assist: true,

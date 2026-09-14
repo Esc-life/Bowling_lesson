@@ -186,8 +186,15 @@ export class DragInput {
 
     // 각도: 당긴 방향의 좌우 성분. 당긴 거리 대비 비율로 계산해야
     // 조금 당길 때 각도가 과민하게 튀지 않는다.
+    //
+    // 활시위처럼 당긴 반대쪽으로 날아가야 한다 — 화면 왼쪽(8시 방향)으로
+    // 당기면(dx < 0, 공을 왼쪽 뒤로 당긴 셈) 화면 오른쪽(2시 방향)으로
+    // 던져져야 한다(사용자 피드백: 왼쪽으로 당겼는데 왼쪽으로 날아갔다).
+    // angle의 부호 규칙(양수 = 월드 +X = 화면 왼쪽, pinLayout.ts 참고)에서
+    // 화면 오른쪽은 음수 각도이므로, dx < 0일 때 angle도 음수여야 한다 —
+    // dx를 부호 반전 없이 그대로 쓴다.
     const maxAngle = ((THROW.maxAngleDeg * Math.PI) / 180) * scale.angle;
-    const lateralRatio = pullPx > 8 ? clamp(-dx / pullPx, -1, 1) : 0;
+    const lateralRatio = pullPx > 8 ? clamp(dx / pullPx, -1, 1) : 0;
     const angle = lateralRatio * maxAngle;
 
     // 당김 기울기 (px 좌우 / px 아래). 스핀 계산에서 조준 성분을 빼는 데 쓴다.

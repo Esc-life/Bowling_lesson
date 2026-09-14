@@ -76,7 +76,6 @@ export class Lane {
   private targetArrow: THREE.Mesh;
   private dots: THREE.Group;
   private readonly markingMaterial: THREE.MeshBasicMaterial;
-  private readonly targetMaterial: THREE.MeshBasicMaterial;
 
   constructor(hand: Handedness) {
     const laneLength = LANE.pitZ;
@@ -151,16 +150,19 @@ export class Lane {
     //
     // 화살표의 위치 자체는 좌우 대칭이므로 손을 바꿔도 그대로다. 바뀌는 것은
     // "몇 번 화살표인가"이고, 기본 조준점인 2번 화살표는 주손 쪽에 있다.
-    // 그래서 2번만 색과 크기를 달리해 표시한다 — 레슨 D1이 가르치는 바로
-    // 그 기준점을 아이가 화면에서 찾을 수 있어야 한다.
+    // 그래서 2번만 크기를 달리해 표시한다 — 레슨 D1이 가르치는 바로 그
+    // 기준점을 아이가 화면에서 찾을 수 있어야 한다.
+    //
+    // 예전에는 색도 주황으로 달리해 더 눈에 띄게 했는데, 실제로 던지면서
+    // 조준하기에는 오히려 방해가 된다는 사용자 피드백으로 색은 없앴다 —
+    // 다른 화살표와 같은 markingMaterial을 쓴다.
     this.arrows = new THREE.Mesh(arrowsGeometry(hand, otherArrows()), this.markingMaterial);
     this.arrows.position.y = MARKING_Y;
     this.group.add(this.arrows);
 
-    this.targetMaterial = new THREE.MeshBasicMaterial({ color: 0xe8623c });
     this.targetArrow = new THREE.Mesh(
       arrowsGeometry(hand, [TARGET_ARROW], 1.35),
-      this.targetMaterial,
+      this.markingMaterial,
     );
     this.targetArrow.position.y = MARKING_Y + 0.001;
     this.group.add(this.targetArrow);

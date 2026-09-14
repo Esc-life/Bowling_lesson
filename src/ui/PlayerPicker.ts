@@ -168,7 +168,7 @@ export class PlayerPicker {
           <button type="button" class="sync-toggle" data-sync-toggle="1" aria-pressed="${this.syncOn}">
             <span class="sync-toggle-icon" aria-hidden="true">🔗</span>
             <span class="sync-toggle-text">
-              <span class="sync-toggle-title">다른 기기와 이어서 쓰기</span>
+              <span class="sync-toggle-title">계정 정보 저장</span>
               <span class="sync-toggle-sub">집·학교 등 여러 기기에서 이어서 배우고 싶으면 켜 주세요</span>
             </span>
             <span class="switch${this.syncOn ? ' is-on' : ''}" aria-hidden="true"><span class="switch-knob"></span></span>
@@ -181,14 +181,20 @@ export class PlayerPicker {
           </label>
         </div>
 
-        <button type="button" class="text-btn teacher-toggle" data-teacher-toggle="1">
-          ${this.showTeacherField ? '선생님 아니에요' : '선생님이신가요?'}
-        </button>
-        <label class="field field--teacher${this.showTeacherField ? '' : ' is-hidden'}" data-teacher-field>
-          <span>비밀번호</span>
-          <input id="teacher-password" name="teacherPassword" type="password" autocomplete="off"
-                 placeholder="선생님 계정 비밀번호" value="${escapeHtml(this.draftTeacherPassword)}">
-        </label>
+        <div class="sync-block">
+          <button type="button" class="sync-toggle teacher-toggle" data-teacher-toggle="1" aria-pressed="${this.showTeacherField}">
+            <span class="sync-toggle-icon" aria-hidden="true">🍎</span>
+            <span class="sync-toggle-text">
+              <span class="sync-toggle-title">선생님 계정이에요</span>
+            </span>
+            <span class="switch${this.showTeacherField ? ' is-on' : ''}" aria-hidden="true"><span class="switch-knob"></span></span>
+          </button>
+          <label class="field field--teacher${this.showTeacherField ? '' : ' is-hidden'}" data-teacher-field>
+            <span>비밀번호</span>
+            <input id="teacher-password" name="teacherPassword" type="password" autocomplete="off"
+                   placeholder="선생님 계정 비밀번호" value="${escapeHtml(this.draftTeacherPassword)}">
+          </label>
+        </div>
 
         <p class="lead">공을 어느 손으로 던지나요?</p>
         <div class="hand-choices">
@@ -297,11 +303,23 @@ export class PlayerPicker {
     });
   }
 
-  /** 전체를 다시 그리지 않고 비밀번호 칸만 보이거나 숨긴다 (손 버튼과 같은 이유) */
+  /** 전체를 다시 그리지 않고 스위치 모양·비밀번호 칸만 갱신한다 (손 버튼과 같은 이유) */
   private updateTeacherField(): void {
-    this.element.querySelector<HTMLElement>('[data-teacher-field]')?.classList.toggle('is-hidden', !this.showTeacherField);
     const toggle = this.element.querySelector<HTMLElement>('[data-teacher-toggle]');
-    if (toggle !== null) toggle.textContent = this.showTeacherField ? '선생님 아니에요' : '선생님이신가요?';
+    toggle?.setAttribute('aria-pressed', String(this.showTeacherField));
+    toggle?.querySelector('.switch')?.classList.toggle('is-on', this.showTeacherField);
+
+    const field = this.element.querySelector<HTMLElement>('[data-teacher-field]');
+    field?.classList.toggle('is-hidden', !this.showTeacherField);
+
+    const passwordInput = this.element.querySelector<HTMLInputElement>('#teacher-password');
+    if (this.showTeacherField) {
+      passwordInput?.focus();
+    } else {
+      // 껐을 때 이미 입력해 둔 비밀번호를 지운다 — sync 스위치와 같은 이유
+      this.draftTeacherPassword = '';
+      if (passwordInput !== null) passwordInput.value = '';
+    }
   }
 
   /** 스위치 모양·PIN 칸을 전체 재렌더 없이 갱신한다 (손 버튼과 같은 이유로 깜빡임을 피한다) */

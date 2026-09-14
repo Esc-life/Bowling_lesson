@@ -133,7 +133,9 @@ export function renderLaneTop(opts: LaneTopOptions, hand: Handedness): HTMLEleme
     size: 12, weight: '700', color: '#ff9d9d', align: 'right',
   });
   text(ctx, '여기서 던져요', cx, foulY + 16, { size: 12, color: labelColor });
-  text(ctx, `↑ 핀까지 ${LANE.headPinZ}m`, cx, toY(LANE.headPinZ / 2 + 3.5), {
+  // 소수점(18.29m)은 초등 저학년에게 불필요한 정밀함이라 반올림한다
+  // — 본문의 "버스 두 대" 비유와 같은 눈높이(config.ts ANALOGIES.laneLength)
+  text(ctx, `↑ 핀까지 약 ${Math.round(LANE.headPinZ)}m`, cx, toY(LANE.headPinZ / 2 + 3.5), {
     size: 11, color: 'rgba(255,255,255,0.75)',
   });
 

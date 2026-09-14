@@ -96,12 +96,18 @@ export class PlayerPicker {
             <li class="player-row player-row--unlocking">
               <form class="unlock-form" data-unlock-form="${p.id}">
                 <span class="unlock-name">${escapeHtml(p.name)}</span>
-                <label class="field">
+                <label class="field field--code">
                   <span>${p.isMaster === true ? '인증 코드' : `코드 ${CODE_LENGTH}자리`}</span>
-                  <input id="unlock-value" name="unlockValue"
-                         type="${p.isMaster === true ? 'password' : 'text'}"
-                         ${p.isMaster === true ? '' : `inputmode="numeric" pattern="[0-9]{${CODE_LENGTH}}" maxlength="${CODE_LENGTH}"`}
-                         autocomplete="off">
+                  ${
+                    p.isMaster === true
+                      ? `<span class="input-with-toggle">
+                           <input id="unlock-value" name="unlockValue" type="password" autocomplete="off">
+                           <button type="button" class="input-toggle" data-toggle-visibility="unlock-value" aria-label="입력한 코드 보기">👁</button>
+                         </span>`
+                      : `<input id="unlock-value" name="unlockValue" type="text"
+                                inputmode="numeric" pattern="[0-9]{${CODE_LENGTH}}" maxlength="${CODE_LENGTH}"
+                                autocomplete="off">`
+                  }
                 </label>
                 <p class="form-error unlock-error" role="alert"></p>
                 <div class="row-buttons">
@@ -150,20 +156,14 @@ export class PlayerPicker {
       <form class="panel" novalidate>
         <h1>${first ? '볼링을 시작해요' : '로그인'}</h1>
 
-        <div class="hand-choices">
-          <button type="button" class="hand-choice${studentOn ? ' is-on' : ''}" data-mode="student">
-            <span class="hand-icon" aria-hidden="true">🎓</span>
-            <span class="hand-name">학생</span>
-          </button>
-          <button type="button" class="hand-choice${studentOn ? '' : ' is-on'}" data-mode="teacher">
-            <span class="hand-icon" aria-hidden="true">🍎</span>
-            <span class="hand-name">선생님</span>
-          </button>
+        <div class="entry-tabs" role="tablist">
+          <button type="button" class="entry-tab${studentOn ? ' is-on' : ''}" data-mode="student">🎓 학생</button>
+          <button type="button" class="entry-tab${studentOn ? '' : ' is-on'}" data-mode="teacher">🍎 선생님</button>
         </div>
 
         <div data-mode-fields="student"${studentOn ? '' : ' hidden'}>
           <p class="lead">선생님께 받은 로그인 코드를 입력해 주세요.</p>
-          <label class="field">
+          <label class="field field--code">
             <span>로그인 코드 ${CODE_LENGTH}자리</span>
             <input id="login-code" name="code" type="text" inputmode="numeric"
                    pattern="[0-9]{${CODE_LENGTH}}" maxlength="${CODE_LENGTH}"
@@ -172,15 +172,19 @@ export class PlayerPicker {
         </div>
 
         <div data-mode-fields="teacher"${studentOn ? ' hidden' : ''}>
+          <p class="lead">성함과 인증 코드를 입력해 주세요.</p>
           <label class="field">
             <span>선생님 성함</span>
             <input id="teacher-name" name="teacherName" type="text" maxlength="12"
                    autocomplete="off" placeholder="이름을 적어 주세요" value="${escapeHtml(this.draftTeacherName)}">
           </label>
-          <label class="field">
+          <label class="field field--code">
             <span>인증 코드</span>
-            <input id="teacher-code" name="teacherCode" type="password" autocomplete="off"
-                   value="${escapeHtml(this.draftTeacherCode)}">
+            <span class="input-with-toggle">
+              <input id="teacher-code" name="teacherCode" type="password" autocomplete="off"
+                     value="${escapeHtml(this.draftTeacherCode)}">
+              <button type="button" class="input-toggle" data-toggle-visibility="teacher-code" aria-label="입력한 코드 보기">👁</button>
+            </span>
           </label>
         </div>
 
@@ -207,11 +211,20 @@ export class PlayerPicker {
 
   private handleClick(e: Event): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-mode],[data-unlock-cancel]',
+      '[data-pick],[data-new],[data-delete],[data-delete-yes],[data-delete-no],[data-cancel],[data-hand],[data-mode],[data-unlock-cancel],[data-toggle-visibility]',
     );
     if (el === null) return;
     const d = el.dataset;
 
+    if (d['toggleVisibility'] !== undefined) {
+      const input = this.element.querySelector<HTMLInputElement>(`#${d['toggleVisibility']}`);
+      if (input === null) return;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      el.textContent = showing ? '👁' : '🙈';
+      input.focus();
+      return;
+    }
     if (d['pick'] !== undefined) {
       const id = d['pick'];
       const target = players.players.find((p) => p.id === id);

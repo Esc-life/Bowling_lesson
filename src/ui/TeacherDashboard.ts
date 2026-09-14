@@ -75,10 +75,13 @@ export class TeacherDashboard {
       <form class="panel" novalidate>
         <h1>학생 기록 보기</h1>
         <p class="lead">내가 등록한 학생들의 진행률을 확인해요. 인증 코드를 다시 확인할게요.</p>
-        <label class="field">
+        <label class="field field--code">
           <span>선생님 인증 코드</span>
-          <input id="dashboard-password" name="password" type="password" autocomplete="off"
-                 value="${escapeHtml(this.draftCode)}">
+          <span class="input-with-toggle">
+            <input id="dashboard-password" name="password" type="password" autocomplete="off"
+                   value="${escapeHtml(this.draftCode)}">
+            <button type="button" class="input-toggle" data-toggle-visibility="dashboard-password" aria-label="입력한 코드 보기">👁</button>
+          </span>
         </label>
         <p class="form-error" role="alert">${escapeHtml(error)}</p>
         <div class="row-buttons">
@@ -122,8 +125,19 @@ export class TeacherDashboard {
   }
 
   private handleClick(e: Event): void {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close],[data-toggle-visibility]');
     if (el === null) return;
+    const d = el.dataset;
+
+    if (d['toggleVisibility'] !== undefined) {
+      const input = this.element.querySelector<HTMLInputElement>(`#${d['toggleVisibility']}`);
+      if (input === null) return;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      el.textContent = showing ? '👁' : '🙈';
+      input.focus();
+      return;
+    }
     this.onClose();
   }
 

@@ -68,10 +68,13 @@ export class TeacherRegister {
           <input id="student-name" name="name" type="text" maxlength="${MAX_NAME_LENGTH}"
                  autocomplete="off" placeholder="이름을 적어 주세요" value="${escapeHtml(this.draftName)}">
         </label>
-        <label class="field">
+        <label class="field field--code">
           <span>선생님 인증 코드 확인</span>
-          <input id="teacher-code" name="teacherCode" type="password"
-                 autocomplete="off" value="${escapeHtml(this.draftTeacherCode)}">
+          <span class="input-with-toggle">
+            <input id="teacher-code" name="teacherCode" type="password"
+                   autocomplete="off" value="${escapeHtml(this.draftTeacherCode)}">
+            <button type="button" class="input-toggle" data-toggle-visibility="teacher-code" aria-label="입력한 코드 보기">👁</button>
+          </span>
         </label>
         <p class="form-error" role="alert"></p>
         <div class="row-buttons">
@@ -100,10 +103,19 @@ export class TeacherRegister {
   }
 
   private handleClick(e: Event): void {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close],[data-again]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close],[data-again],[data-toggle-visibility]');
     if (el === null) return;
     const d = el.dataset;
 
+    if (d['toggleVisibility'] !== undefined) {
+      const input = this.element.querySelector<HTMLInputElement>(`#${d['toggleVisibility']}`);
+      if (input === null) return;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      el.textContent = showing ? '👁' : '🙈';
+      input.focus();
+      return;
+    }
     if (d['close'] !== undefined) {
       this.onClose();
       return;

@@ -32,6 +32,40 @@ function formatUpdatedAt(iso: string): string {
   return date.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+/** 셀 안에 쉼표·줄바꿈·따옴표가 있어도 스프레드시트가 한 칸으로 읽도록 감싼다 */
+function csvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function toCsv(students: readonly StudentRecord[]): string {
+  const header = ['이름', '코드', '손', '배운 레슨', '퀴즈 평균', '최근 갱신'];
+  const rows = students.map((s) => {
+    const { done, total } = lessonCountOf(s.progress);
+    return [
+      s.name,
+      s.code,
+      s.handedness === 'left' ? '왼손' : '오른손',
+      `${done}/${total}`,
+      quizAverage(s.progress),
+      formatUpdatedAt(s.updatedAt),
+    ];
+  });
+  // 엑셀이 한글을 깨진 글자로 읽지 않도록 UTF-8 BOM을 앞에 붙인다.
+  return '﻿' + [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+}
+
+function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -101,7 +135,10 @@ export class TeacherDashboard {
               const updated = formatUpdatedAt(s.updatedAt);
               return `
                 <li class="student-row">
-                  <span class="student-name">${escapeHtml(s.name)} <span class="student-code">코드 ${escapeHtml(s.code)}</span></span>
+                  <div class="student-row-top">
+                    <span class="student-name">${escapeHtml(s.name)}</span>
+                    <span class="register-code">${escapeHtml(s.code)}</span>
+                  </div>
                   <span class="student-meta">
                     ${handLabel} · ${done}/${total} 배움 · ${escapeHtml(quizAverage(s.progress))}
                     ${updated.length > 0 ? `· ${escapeHtml(updated)} 갱신` : ''}
@@ -113,9 +150,17 @@ export class TeacherDashboard {
 
     return `
       <div class="panel">
-        <h1>학생 기록</h1>
+        <div class="dashboard-head">
+          <h1>학생 기록</h1>
+          <span class="dashboard-count">총 ${students.length}명</span>
+        </div>
         ${rows}
         <div class="row-buttons">
+          ${
+            students.length > 0
+              ? '<button type="button" class="text-btn" data-download-csv="1">⬇ 명단 다운로드 (.csv)</button>'
+              : ''
+          }
           <button type="button" class="text-btn" data-close="1">닫기</button>
         </div>
       </div>
@@ -123,8 +168,17 @@ export class TeacherDashboard {
   }
 
   private handleClick(e: Event): void {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-close],[data-download-csv]');
     if (el === null) return;
+    const d = el.dataset;
+
+    if (d['downloadCsv'] !== undefined) {
+      if (this.state.kind !== 'ok') return;
+      const teacherName = players.current?.name ?? '학생';
+      const today = new Date().toISOString().slice(0, 10);
+      downloadCsv(`학생명단_${teacherName}_${today}.csv`, toCsv(this.state.students));
+      return;
+    }
     this.onClose();
   }
 

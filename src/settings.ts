@@ -21,6 +21,8 @@ export type Settings = {
   showOilZone: boolean;
   /** 관찰 모드: 공 궤적 표시 */
   showTrajectory: boolean;
+  /** 효과음 on/off. 공용 PC에서 여러 명이 동시에 켜 두면 시끄러울 수 있어 끌 수 있게 한다 */
+  soundOn: boolean;
 };
 
 const DEFAULTS: Settings = {
@@ -28,6 +30,7 @@ const DEFAULTS: Settings = {
   showPinNumbers: false,
   showOilZone: false,
   showTrajectory: false,
+  soundOn: true,
 };
 
 function isDifficulty(v: unknown): v is DifficultyName {
@@ -42,6 +45,7 @@ function sanitize(raw: unknown): Settings {
     showPinNumbers: o['showPinNumbers'] === true,
     showOilZone: o['showOilZone'] === true,
     showTrajectory: o['showTrajectory'] === true,
+    soundOn: o['soundOn'] !== false,
   };
 }
 

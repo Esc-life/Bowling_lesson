@@ -336,6 +336,14 @@ button:disabled {
   right: 118px;
 }
 
+/* 오른쪽 위는 처음부터/배우기(위)·observe 패널(아래)이 이미 다 차지한다.
+   frame-label 밑, 왼쪽 위 빈자리에 둔다. */
+.sound-btn {
+  position: absolute;
+  top: 70px;
+  left: 16px;
+}
+
 /* ---------------------------------------------------------------- 점수판 */
 
 /* 실제 볼링장 점수판도 위에 걸려 있다. 아래에 두면 조작 UI와 겹친다. */
@@ -1416,6 +1424,19 @@ button:disabled {
   .learn-btn.is-quit {
     min-width: auto;
     font-size: 14px;
+  }
+
+  .sound-btn {
+    top: calc(48px + max(8px, env(safe-area-inset-top)));
+    left: max(8px, env(safe-area-inset-left));
+    right: auto;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.16);
   }
 
   .scoreboard {

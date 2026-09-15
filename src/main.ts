@@ -17,6 +17,7 @@
  * 애먼 학생의 진도가 링크 한 번에 바뀌기 때문이다.
  */
 
+import { Sound } from './audio/SoundEngine';
 import { OnlineMatchController } from './net/OnlineMatchController';
 import type { RoomChannel } from './net/RoomChannel';
 import { players } from './players/PlayerStore';
@@ -75,7 +76,14 @@ async function main(): Promise<void> {
     onMoveLeft: () => game.nudge('left'),
     onMoveRight: () => game.nudge('right'),
     onRestart: () => restart(),
+    onToggleSound: () => settings.update({ soundOn: !settings.value.soundOn }),
   });
+  hud.setSoundOn(settings.value.soundOn);
+  settings.subscribe((s) => hud.setSoundOn(s.soundOn));
+
+  // 브라우저는 사용자 제스처 없이는 오디오 재생을 막는다. 화면 어디를
+  // 처음 눌러도(레인 드래그든 메뉴 버튼이든) 그 순간 한 번 풀어 둔다.
+  window.addEventListener('pointerdown', () => Sound.unlock(), { once: true });
   const scoreboard = new Scoreboard();
   const observe = new ObserveControls((state) => game.setObserveState(state));
 

@@ -210,6 +210,16 @@ export class Bodies {
     return p.z > LANE.pitZ || p.y < -LANE.gutterDepth - 0.02;
   }
 
+  /**
+   * 공이 거터로 떨어지는 순간인가. 레인 폭을 벗어났고(|x| > HALF_WIDTH)
+   * 굴러가던 높이(y = 반지름)보다 눈에 띄게 내려앉았을 때다 — 핀덱까지
+   * 다 굴러가길 기다리지 않고 빠지는 그 순간 소리를 내려고 따로 둔다.
+   */
+  ballInGutter(): boolean {
+    const p = this.ball.translation();
+    return Math.abs(p.x) > HALF_WIDTH && p.y < BALL.radius - 0.02;
+  }
+
   // -------------------------------------------------------------------------
   // 핀
   // -------------------------------------------------------------------------

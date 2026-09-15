@@ -9,6 +9,7 @@
  */
 
 import * as THREE from 'three';
+import { Sound } from '../audio/SoundEngine';
 import { BALL, DIFFICULTY, LANE, PHYSICS, THROW } from '../config';
 import { Bodies } from '../physics/Bodies';
 import { SettleWatcher, standingPins } from '../physics/PinState';
@@ -45,6 +46,11 @@ export type GameEvents = {
 /** 서는 위치를 버튼 한 번에 옮기는 폭 (m) — 보드 2장쯤 */
 const NUDGE_STEP = 0.054;
 
+/** 핀이 "가만히 있다"로 볼 속력 상한(m/s). 이보다 빨라지면 막 맞은 것으로 본다 */
+const PIN_MOVE_EPS = 0.15;
+/** 핀 충돌음 볼륨을 1로 만드는 기준 속력(m/s) — 세게 맞을수록 이 값에 가까워진다 */
+const PIN_HIT_REF_SPEED = 4;
+
 export class Game {
   readonly scene: SceneSetup;
   readonly input: DragInput;
@@ -74,6 +80,11 @@ export class Game {
   /** 헤드핀 Z를 지나는 순간의 공 x — 포켓 판정에 쓴다 */
   private ballXAtHeadPin: number | null = null;
   private hand: Handedness;
+
+  /** 핀마다 "지난 프레임에 움직이고 있었는가" — 막 움직이기 시작한 순간에만 충돌음을 낸다 */
+  private readonly pinWasMoving: boolean[] = new Array(ALL_PINS.length).fill(false);
+  /** 이번 투구에서 거터 소리를 이미 냈는가 (한 번만 나야 한다) */
+  private gutterPlayed = false;
 
   private events: GameEvents = {
     onThrowResolved: () => {},
@@ -209,6 +220,8 @@ export class Game {
     this.bodies.setPins(this.machine.standingPins);
     this.bodies.placeBall(this.input.startX);
     this.ballXAtHeadPin = null;
+    this.pinWasMoving.fill(false);
+    this.gutterPlayed = false;
     this.watcher.reset();
     this.physics.resetAccumulator();
     this.input.reset();
@@ -233,8 +246,11 @@ export class Game {
     this._match.throwBall();
     this.watcher.reset();
     this.ballXAtHeadPin = null;
+    this.pinWasMoving.fill(false);
+    this.gutterPlayed = false;
     this.trajectory.beginThrow();
     this.aimGuide.hide();
+    Sound.rollStart();
 
     this.bodies.launchBall({
       startX: input.startX,
@@ -372,6 +388,8 @@ export class Game {
 
     if (physicsDt > 0) {
       this.trajectory.sample(physicsDt, this.ballVec.x, this.ballVec.y, this.ballVec.z);
+      this.updatePinHitSounds();
+      this.updateRollSound();
       this.updateThrowProgress(physicsDt);
     }
 
@@ -389,11 +407,16 @@ export class Game {
     const status = this.watcher.update(this.bodies, physicsDt);
     if (status !== 'settled') return;
 
+    Sound.rollStop();
+
     const remaining = standingPins(this.bodies, this.machine.standingPins);
     // 던진 사람 — settle()이 차례를 넘기기 전에 잡아 둔다
     const throwerId = this._match.active.id;
     const result = this._match.settle(remaining);
     this.events.onLocalRoll(remaining, throwerId);
+
+    if (result.isStrike) Sound.strike();
+    else if (result.isSpare) Sound.spare();
 
     // 차례가 넘어갔으면 다음 사람의 손으로 레인 표시를 바꾼다
     if (result.turnChanged && !result.matchOver) {
@@ -415,6 +438,44 @@ export class Game {
     if (this.ballXAtHeadPin !== null) return;
     if (this.ballVec.z >= LANE.headPinZ) {
       this.ballXAtHeadPin = this.ballVec.x;
+    }
+  }
+
+  /**
+   * 핀마다 "막 움직이기 시작한 순간"을 잡아 충돌음을 낸다.
+   *
+   * 실제 충돌 이벤트를 Rapier에서 받는 대신 속력이 문턱을 넘는 순간(rising
+   * edge)으로 근사한다 — 공에 맞을 때든 다른 핀에 맞아 튈 때든 똑같이
+   * 잡히고, 매 프레임 한 번씩만 훑으면 되니 훨씬 간단하다.
+   */
+  private updatePinHitSounds(): void {
+    for (let i = 0; i < ALL_PINS.length; i++) {
+      const body = this.bodies.pins[i]!;
+      if (!body.isEnabled()) {
+        this.pinWasMoving[i] = false;
+        continue;
+      }
+      const v = body.linvel();
+      const speed = Math.hypot(v.x, v.y, v.z);
+      const moving = speed > PIN_MOVE_EPS;
+      if (moving && this.pinWasMoving[i] === false) {
+        Sound.pinHit(clamp(speed / PIN_HIT_REF_SPEED, 0, 1));
+      }
+      this.pinWasMoving[i] = moving;
+    }
+  }
+
+  /** 공이 굴러가는 동안 속력에 맞춰 소리를 키우고, 거터에 빠지는 순간을 잡는다 */
+  private updateRollSound(): void {
+    const phase = this.machine.phase;
+    if (phase !== 'thrown' && phase !== 'settling') return;
+
+    const v = this.bodies.ball.linvel();
+    Sound.rollUpdate(Math.hypot(v.x, v.y, v.z));
+
+    if (!this.gutterPlayed && this.bodies.ballInGutter()) {
+      Sound.gutter();
+      this.gutterPlayed = true;
     }
   }
 

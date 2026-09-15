@@ -9,6 +9,7 @@ export type HudCallbacks = {
   onMoveLeft: () => void;
   onMoveRight: () => void;
   onRestart: () => void;
+  onToggleSound: () => void;
 };
 
 export class Hud {
@@ -20,6 +21,7 @@ export class Hud {
   private readonly powerWrap: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly positionLabel: HTMLElement;
+  private readonly soundBtn: HTMLElement;
 
   private bannerTimer: number | null = null;
 
@@ -45,6 +47,7 @@ export class Hud {
       <button type="button" class="text-btn restart-btn" data-act="restart" aria-label="처음부터">
         <span aria-hidden="true">🔄</span><span class="btn-label"> 처음부터</span>
       </button>
+      <button type="button" class="round-btn sound-btn" data-act="toggle-sound" aria-label="소리 끄기">🔊</button>
     `;
 
     this.frameLabel = this.must('.frame-label');
@@ -53,6 +56,7 @@ export class Hud {
     this.powerWrap = this.must('.power-wrap');
     this.banner = this.must('.hud-banner');
     this.positionLabel = this.must('.position-label');
+    this.soundBtn = this.must('.sound-btn');
 
     this.element.addEventListener('click', (e) => {
       const target = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
@@ -65,6 +69,9 @@ export class Hud {
           break;
         case 'restart':
           callbacks.onRestart();
+          break;
+        case 'toggle-sound':
+          callbacks.onToggleSound();
           break;
         default:
           break;
@@ -111,5 +118,10 @@ export class Hud {
 
   hideBanner(): void {
     this.banner.classList.remove('is-visible');
+  }
+
+  setSoundOn(on: boolean): void {
+    this.soundBtn.textContent = on ? '🔊' : '🔇';
+    this.soundBtn.setAttribute('aria-label', on ? '소리 끄기' : '소리 켜기');
   }
 }

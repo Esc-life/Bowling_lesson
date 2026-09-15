@@ -9,7 +9,7 @@
  * 초기화가 같은 방식이라 패턴을 맞췄다.
  */
 
-import { loginStudent, mergeProgress, verifyTeacherCode } from '../net/PlayerSync';
+import { loginStudent, loginTeacher, mergeProgress } from '../net/PlayerSync';
 import { checkName, players } from '../players/PlayerStore';
 import type { Player } from '../players/types';
 import { lessonCount } from '../players/unlock';
@@ -316,10 +316,11 @@ export class PlayerPicker {
   }
 
   /**
-   * 이미 이 기기에 있는 코드 계정을 고를 때 원격 진행률과 한 번 맞춰 본다.
+   * 이미 이 기기에 있는 학생 코드 계정을 고를 때 원격 진행률과 한 번 맞춰 본다.
    *
    * 실패(오프라인 등)해도 조용히 로컬 그대로 진행한다 — 여기서 오류를 띄우면
-   * "그냥 이어서 하려던" 학생이 매번 막힌다.
+   * "그냥 이어서 하려던" 학생이 매번 막힌다. 교사 계정은 고를 때마다 인증 코드를
+   * 다시 묻으므로(confirmUnlock) 여기를 타지 않는다.
    */
   private async syncOnEntry(player: Player): Promise<Player> {
     if (player.code === undefined) return player;
@@ -338,9 +339,8 @@ export class PlayerPicker {
    *
    * 학생 코드는 이 기기에 이미 저장된 값(player.code)과 그대로 비교한다 —
    * 코드 자체가 유일한 로그인 수단이라 오프라인에서도 통과해야 한다.
-   * 교사 인증 코드는 로그인할 때(여기)만 서버로 확인한다 — 통과하면
-   * PlayerStore에 저장해 두어, 로그인 뒤에 쓰는 학생 등록·학생 기록 조회는
-   * 코드를 또 묻지 않고 이 값을 그대로 재사용한다.
+   * 교사 인증 코드는 로그인할 때(여기)만 서버로 확인한다 — loginTeacher가
+   * 통과와 동시에 원격 진행률도 돌려주므로 그 자리에서 바로 병합한다.
    */
   private async confirmUnlock(id: string): Promise<void> {
     if (this.submitting) return;
@@ -360,13 +360,27 @@ export class PlayerPicker {
     }
 
     try {
-      const ok = player.isMaster === true ? await verifyTeacherCode(value) : value.length > 0 && value === player.code;
+      if (player.isMaster === true) {
+        const pulled = await loginTeacher(value, player.name);
+        if (pulled.kind !== 'ok') {
+          if (error !== null) error.textContent = '인증 코드가 달라요.';
+          input?.focus();
+          return;
+        }
+        players.setTeacherCode(id, value);
+        players.saveProgress(id, mergeProgress(player.progress, pulled.progress));
+        this.unlocking = null;
+        players.select(id);
+        this.onDone(players.current ?? player);
+        return;
+      }
+
+      const ok = value.length > 0 && value === player.code;
       if (!ok) {
-        if (error !== null) error.textContent = player.isMaster === true ? '인증 코드가 달라요.' : '코드가 달라요.';
+        if (error !== null) error.textContent = '코드가 달라요.';
         input?.focus();
         return;
       }
-      if (player.isMaster === true) players.setTeacherCode(id, value);
       this.unlocking = null;
       players.select(id);
       const picked = players.current;
@@ -485,12 +499,18 @@ export class PlayerPicker {
       return;
     }
 
-    const ok = await verifyTeacherCode(code);
-    if (!ok) {
+    const pulled = await loginTeacher(code, check.name);
+    if (pulled.kind === 'offline') {
+      error.textContent = '지금은 로그인할 수 없어요. 인터넷 연결을 확인해 주세요.';
+      return;
+    }
+    if (pulled.kind === 'auth_failed') {
       error.textContent = '인증 코드가 달라요.';
       return;
     }
 
-    this.onDone(players.create(check.name, this.hand, { isMaster: true, teacherCode: code }));
+    this.onDone(
+      players.create(check.name, this.hand, { isMaster: true, teacherCode: code, progress: pulled.progress }),
+    );
   }
 }

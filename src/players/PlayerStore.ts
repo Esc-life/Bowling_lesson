@@ -12,7 +12,7 @@
  * 옛 값은 그 화면의 초기 선택(pendingHandedness)으로만 쓴다.
  */
 
-import { saveStudentProgress } from '../net/PlayerSync';
+import { saveStudentProgress, saveTeacherProgress } from '../net/PlayerSync';
 import type { Handedness } from '../rules/pinLayout';
 import { emptyProgress, type ProgressState, type QuizScore } from '../tutorial/TutorialFlow';
 import type { Player, StorageLike } from './types';
@@ -236,10 +236,17 @@ export class PlayerStore {
     player.progress = progress;
     this.persist();
 
-    // 코드가 있는(=교사가 등록한) 플레이어만 원격에도 올린다. await 하지 않는다 —
+    // 코드가 있는(=교사가 등록한) 학생만 원격에도 올린다. await 하지 않는다 —
     // 오프라인이거나 느려도 수업(저장 자체)이 멈추면 안 된다. 실패는 조용히 버린다.
     if (player.code !== undefined) {
       saveStudentProgress(player.code, player.handedness, progress).catch(() => {
+        /* 다음 저장이나 다음 접속에서 다시 시도된다 */
+      });
+    }
+    // 교사 계정도 스스로 레슨·퀴즈를 눌러 볼 수 있다(isGraduated()가 항상 통과시킬
+    // 뿐 화면을 막지는 않는다) — 그 진행률도 같은 이유로 원격에 올린다.
+    if (player.isMaster === true && player.teacherCode !== undefined) {
+      saveTeacherProgress(player.teacherCode, player.name, player.handedness, progress).catch(() => {
         /* 다음 저장이나 다음 접속에서 다시 시도된다 */
       });
     }

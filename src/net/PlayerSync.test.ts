@@ -11,8 +11,15 @@ vi.mock('./supabaseClient', () => ({
   getSupabaseClient: vi.fn(async () => clientRef.current),
 }));
 
-const { mergeProgress, loginStudent, saveStudentProgress, verifyTeacherCode, registerStudent, listStudents } =
-  await import('./PlayerSync');
+const {
+  mergeProgress,
+  loginStudent,
+  saveStudentProgress,
+  loginTeacher,
+  saveTeacherProgress,
+  registerStudent,
+  listStudents,
+} = await import('./PlayerSync');
 
 function progress(over: Partial<ProgressState> = {}): ProgressState {
   return { completedLessons: [], quizScores: {}, currentLessonId: null, ...over };
@@ -105,25 +112,49 @@ describe('saveStudentProgress', () => {
   });
 });
 
-describe('verifyTeacherCode', () => {
-  it('Supabase 설정이 없으면 false', async () => {
+describe('loginTeacher', () => {
+  it('Supabase 설정이 없으면 offline', async () => {
     clientRef.current = null;
-    expect(await verifyTeacherCode('gusanteacher')).toBe(false);
+    expect(await loginTeacher('gs!@', '선생님')).toEqual({ kind: 'offline' });
   });
 
-  it('맞으면 true', async () => {
-    rpcMock.mockResolvedValue({ data: true, error: null });
-    expect(await verifyTeacherCode('gusanteacher')).toBe(true);
+  it('맞으면 손·진행률을 돌려준다', async () => {
+    rpcMock.mockResolvedValue({
+      data: [{ ok: true, handedness: 'left', progress: { completedLessons: ['A1'], quizScores: {}, currentLessonId: null }, error: null }],
+      error: null,
+    });
+    expect(await loginTeacher('gs!@', '선생님')).toEqual({
+      kind: 'ok',
+      handedness: 'left',
+      progress: { completedLessons: ['A1'], quizScores: {}, currentLessonId: null },
+    });
   });
 
-  it('틀리면 false', async () => {
-    rpcMock.mockResolvedValue({ data: false, error: null });
-    expect(await verifyTeacherCode('wrong')).toBe(false);
+  it('코드가 틀리면 auth_failed', async () => {
+    rpcMock.mockResolvedValue({ data: [{ ok: false, handedness: null, progress: null, error: 'teacher_auth_failed' }], error: null });
+    expect(await loginTeacher('wrong', '선생님')).toEqual({ kind: 'auth_failed' });
   });
 
-  it('RPC 에러도 false', async () => {
+  it('RPC 에러는 offline으로 취급한다', async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: '함수가 없음' } });
-    expect(await verifyTeacherCode('x')).toBe(false);
+    expect(await loginTeacher('gs!@', '선생님')).toEqual({ kind: 'offline' });
+  });
+});
+
+describe('saveTeacherProgress', () => {
+  it('Supabase 설정이 없으면 실패로 취급하되 예외는 안 던진다', async () => {
+    clientRef.current = null;
+    expect(await saveTeacherProgress('gs!@', '선생님', 'right', progress())).toEqual({ ok: false, error: 'offline' });
+  });
+
+  it('성공하면 ok', async () => {
+    rpcMock.mockResolvedValue({ data: [{ ok: true, error: null }], error: null });
+    expect(await saveTeacherProgress('gs!@', '선생님', 'right', progress())).toEqual({ ok: true });
+  });
+
+  it('인증 코드가 틀리면 에러를 그대로 전달한다', async () => {
+    rpcMock.mockResolvedValue({ data: [{ ok: false, error: 'teacher_auth_failed' }], error: null });
+    expect(await saveTeacherProgress('wrong', '선생님', 'right', progress())).toEqual({ ok: false, error: 'teacher_auth_failed' });
   });
 });
 

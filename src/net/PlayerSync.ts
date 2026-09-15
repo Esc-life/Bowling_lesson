@@ -21,6 +21,11 @@ export type LoginResult =
   | { kind: 'not_found' }
   | { kind: 'ok'; name: string; handedness: Handedness; progress: ProgressState };
 
+export type TeacherLoginResult =
+  | { kind: 'offline' }
+  | { kind: 'auth_failed' }
+  | { kind: 'ok'; handedness: Handedness; progress: ProgressState };
+
 export type PushResult = { ok: true } | { ok: false; error: string };
 
 export type RegisterStudentResult = { ok: true; code: string } | { ok: false; error: string };
@@ -141,14 +146,54 @@ export async function saveStudentProgress(
   return { ok: true };
 }
 
-/** 실패(설정 없음/코드 틀림)는 모두 false — 계정을 미리 등록해 둘 필요가 없는 공유 코드다 */
-export async function verifyTeacherCode(code: string): Promise<boolean> {
+/**
+ * 인증 코드로 교사 로그인한다. 코드가 맞으면 서버가 그 이름을 teachers에
+ * 등록(upsert)해 두고, 그 교사의 진행률·손을 돌려준다 — 학생의 loginStudent와
+ * 같은 자리에 있는 함수다. 계정을 미리 만들어 둘 필요가 없는 공유 코드라
+ * "틀렸다"와 "없다"를 구분하지 않는다.
+ */
+export async function loginTeacher(code: string, name: string): Promise<TeacherLoginResult> {
   const supabase = await getSupabaseClient();
-  if (supabase === null) return false;
+  if (supabase === null) return { kind: 'offline' };
 
-  const { data, error } = await supabase.rpc('verify_teacher_code', { p_code: code });
-  if (error !== null) return false;
-  return data === true;
+  const { data, error } = await supabase.rpc('login_teacher', { p_code: code, p_name: name });
+  if (error !== null || data === null) return { kind: 'offline' };
+
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  if (row === undefined || row['ok'] !== true) return { kind: 'auth_failed' };
+
+  const handedness = row['handedness'];
+  return {
+    kind: 'ok',
+    handedness: isHandedness(handedness) ? handedness : 'right',
+    progress: sanitizeRemoteProgress(row['progress']),
+  };
+}
+
+/** 교사가 스스로 레슨·퀴즈를 눌러 본 진행률을 저장한다. saveStudentProgress와 같은 자리다 */
+export async function saveTeacherProgress(
+  code: string,
+  name: string,
+  handedness: Handedness,
+  progress: ProgressState,
+): Promise<PushResult> {
+  const supabase = await getSupabaseClient();
+  if (supabase === null) return { ok: false, error: 'offline' };
+
+  const { data, error } = await supabase.rpc('save_teacher_progress', {
+    p_code: code,
+    p_name: name,
+    p_handedness: handedness,
+    p_progress: progress,
+  });
+  if (error !== null || data === null) return { ok: false, error: 'offline' };
+
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  if (row === undefined || row['ok'] !== true) {
+    const reason = row?.['error'];
+    return { ok: false, error: typeof reason === 'string' ? reason : 'unknown' };
+  }
+  return { ok: true };
 }
 
 /** 교사가 학생 계정을 만든다. 로그인 코드는 서버가 무작위로 만들어 돌려준다 */

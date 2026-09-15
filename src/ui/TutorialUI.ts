@@ -121,8 +121,15 @@ export class TutorialUI {
       onReset: () => {
         // 이 플레이어의 진도만 비운다. 손은 플레이어에 저장되어 있고,
         // 관찰 옵션 같은 전역 설정은 다른 사람 것이기도 하므로 남겨 둔다.
-        Progress.clear();
-        location.reload();
+        //
+        // Progress.clear()가 끝나기(=원격 푸시까지 끝나기) 전에 새로고침하면,
+        // 되돌아와 계정을 다시 고르는 순간 아직 안 지워진 원격 진행률이
+        // mergeProgress(합집합)로 되살아난다 — "한 번으로는 안 지워지고 두 번
+        // 눌러야 지워지는" 것처럼 보이던 문제. 새로고침을 그만큼 늦춘다.
+        // 오프라인이면 하염없이 기다리지 않도록 짧게 타임아웃한다.
+        void Promise.race([Progress.clear(), new Promise((r) => setTimeout(r, 2500))]).then(() => {
+          location.reload();
+        });
       },
       onFreePractice: () => {
         this.closeAll();

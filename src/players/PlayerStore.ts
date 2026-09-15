@@ -230,26 +230,40 @@ export class PlayerStore {
     this.persist();
   }
 
-  saveProgress(id: string, progress: ProgressState): void {
+  /**
+   * 로컬은 항상 즉시(동기) 저장한다. 원격 푸시는 기다리지 않아도 되는 보통의
+   * 호출부(레슨·퀴즈 저장)는 반환된 Promise를 무시하면 된다 — 오프라인이거나
+   * 느려도 수업이 멈추면 안 된다. 다만 "진행률 지우기"처럼 그 직후 `location.reload()`로
+   * 넘어가는 호출부는 이 Promise를 기다려야 한다: 원격 푸시가 끝나기 전에
+   * 새로고침하면, 되돌아왔을 때 계정을 다시 고르는 순간(PlayerPicker.syncOnEntry)
+   * 아직 안 지워진 원격 진행률을 mergeProgress가 합집합으로 다시 합쳐 버려
+   * "한 번으로는 안 지워지는" 것처럼 보인다.
+   */
+  saveProgress(id: string, progress: ProgressState): Promise<void> {
     const player = this.list.find((p) => p.id === id);
     if (player === undefined) throw new Error(`없는 플레이어입니다: ${id}`);
     player.progress = progress;
     this.persist();
 
-    // 코드가 있는(=교사가 등록한) 학생만 원격에도 올린다. await 하지 않는다 —
-    // 오프라인이거나 느려도 수업(저장 자체)이 멈추면 안 된다. 실패는 조용히 버린다.
+    const pushes: Promise<unknown>[] = [];
+    // 코드가 있는(=교사가 등록한) 학생만 원격에도 올린다. 실패는 조용히 버린다.
     if (player.code !== undefined) {
-      saveStudentProgress(player.code, player.handedness, progress).catch(() => {
-        /* 다음 저장이나 다음 접속에서 다시 시도된다 */
-      });
+      pushes.push(
+        saveStudentProgress(player.code, player.handedness, progress).catch(() => {
+          /* 다음 저장이나 다음 접속에서 다시 시도된다 */
+        }),
+      );
     }
     // 교사 계정도 스스로 레슨·퀴즈를 눌러 볼 수 있다(isGraduated()가 항상 통과시킬
     // 뿐 화면을 막지는 않는다) — 그 진행률도 같은 이유로 원격에 올린다.
     if (player.isMaster === true && player.teacherCode !== undefined) {
-      saveTeacherProgress(player.teacherCode, player.name, player.handedness, progress).catch(() => {
-        /* 다음 저장이나 다음 접속에서 다시 시도된다 */
-      });
+      pushes.push(
+        saveTeacherProgress(player.teacherCode, player.name, player.handedness, progress).catch(() => {
+          /* 다음 저장이나 다음 접속에서 다시 시도된다 */
+        }),
+      );
     }
+    return Promise.all(pushes).then(() => undefined);
   }
 
   findByName(name: string): Player | null {

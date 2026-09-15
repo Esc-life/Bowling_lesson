@@ -35,19 +35,25 @@ export const Progress = {
     return players.current?.progress ?? emptyProgress();
   },
 
-  save(state: ProgressState): void {
-    if (demo) return;
+  /** 반환하는 Promise는 원격 푸시가 끝나는 시점이다 — 보통은 무시해도 된다(save 참고) */
+  save(state: ProgressState): Promise<void> {
+    if (demo) return Promise.resolve();
     const current = players.current;
-    if (current === null) return;
-    players.saveProgress(current.id, state);
+    if (current === null) return Promise.resolve();
+    return players.saveProgress(current.id, state);
   },
 
-  /** 이 플레이어의 진도만 비운다. 다른 플레이어는 그대로다 */
-  clear(): void {
+  /**
+   * 이 플레이어의 진도만 비운다. 다른 플레이어는 그대로다.
+   *
+   * 호출부가 그 직후 location.reload()로 넘어간다면 이 Promise를 꼭 기다려야
+   * 한다 — PlayerStore.saveProgress의 설명 참고.
+   */
+  clear(): Promise<void> {
     // 시연 모드에서는 누구 진도인지 모르는 채로 지우게 된다 — 막는다
-    if (demo) return;
+    if (demo) return Promise.resolve();
     const current = players.current;
-    if (current === null) return;
-    players.saveProgress(current.id, emptyProgress());
+    if (current === null) return Promise.resolve();
+    return players.saveProgress(current.id, emptyProgress());
   },
 };
